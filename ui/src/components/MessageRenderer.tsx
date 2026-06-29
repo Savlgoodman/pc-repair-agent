@@ -1,5 +1,5 @@
 import { memo, type ComponentProps } from "react";
-import { Streamdown, type Components, type ExtraProps } from "streamdown";
+import { Streamdown, type AnimateOptions, type Components, type ExtraProps } from "streamdown";
 
 interface MessageRendererProps {
   content: string;
@@ -18,17 +18,28 @@ const markdownComponents: Components = {
   table: MarkdownTable
 };
 
+const streamdownAnimation: AnimateOptions = {
+  animation: "fadeIn",
+  duration: 150,
+  easing: "ease",
+  sep: "word",
+  stagger: 24
+};
+
 export const MessageRenderer = memo(function MessageRenderer({ content, streaming }: MessageRendererProps) {
+  const isStreaming = Boolean(streaming);
+
   return (
     <div className="streamdown-shell">
       <Streamdown
-        animated={Boolean(streaming)}
+        animated={streamdownAnimation}
+        caret={isStreaming ? "block" : undefined}
         className="streamdown-body"
         components={markdownComponents}
-        isAnimating={Boolean(streaming)}
-        mode={streaming ? "streaming" : "static"}
+        isAnimating={isStreaming}
+        mode="streaming"
       >
-        {content || (streaming ? "..." : "")}
+        {content}
       </Streamdown>
     </div>
   );

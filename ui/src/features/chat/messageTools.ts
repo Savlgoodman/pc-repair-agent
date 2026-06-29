@@ -109,14 +109,14 @@ export function buildAssistantInlineEntries(content: string, toolCalls: ToolCall
     if (text.trim()) {
       entries.push({
         content: text,
-        key: `text-${cursor}-${offset}`,
+        key: `text-${cursor}`,
         toolGroups: []
       });
     }
 
     entries.push({
       content: "",
-      key: `tools-${offset}-${toolsByOffset.get(offset)?.map((tool) => tool.id).join("-")}`,
+      key: `tools-${offset}`,
       toolGroups: [toolsByOffset.get(offset) ?? []]
     });
     cursor = offset;
@@ -126,7 +126,7 @@ export function buildAssistantInlineEntries(content: string, toolCalls: ToolCall
   if (tail.trim()) {
     entries.push({
       content: tail,
-      key: `text-${cursor}-${contentLength}`,
+      key: `text-${cursor}`,
       toolGroups: []
     });
   }
