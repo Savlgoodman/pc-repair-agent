@@ -1,0 +1,45 @@
+{
+  "providers": {
+    "deepseek": {
+      "apiKey": "${DEEPSEEK_API_KEY}",
+      "apiBase": "https://api.deepseek.com"
+    }
+  },
+  "modelPresets": {
+    "deepseekFlash": {
+      "label": "DeepSeek V4 Flash",
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "maxTokens": 4096,
+      "contextWindowTokens": 65536,
+      "temperature": 0.1,
+      "reasoningEffort": "none"
+    }
+  },
+  "agents": {
+    "defaults": {
+      "workspace": "../",
+      "modelPreset": "deepseekFlash",
+      "maxToolIterations": 20,
+      "failOnToolError": true
+    }
+  },
+  "tools": {
+    "restrictToWorkspace": true,
+    "exec": {
+      "enable": true,
+      "timeout": 30
+    },
+    "file": {
+      "enable": true
+    },
+    "web": {
+      "search": {
+        "enable": false
+      },
+      "fetch": {
+        "enable": false
+      }
+    }
+  }
+}
