@@ -1,4 +1,6 @@
-import { MessageSquarePlus, Search, Settings, ShieldCheck, Wrench } from "lucide-react";
+import { useState } from "react";
+
+import { Archive, MessageSquarePlus, Search, Settings, ShieldCheck, Wrench } from "lucide-react";
 
 import { formatTimeLabel } from "../lib/formatters";
 import type { Session } from "../types";
@@ -6,6 +8,7 @@ import type { Session } from "../types";
 interface SidebarProps {
   activeSessionId: string;
   onCreateSession: () => void;
+  onArchiveSession: (sessionId: string) => void;
   onSearchTextChange: (value: string) => void;
   onSelectSession: (sessionId: string) => void;
   searchText: string;
@@ -14,12 +17,25 @@ interface SidebarProps {
 
 export function Sidebar({
   activeSessionId,
+  onArchiveSession,
   onCreateSession,
   onSearchTextChange,
   onSelectSession,
   searchText,
   sessions
 }: SidebarProps) {
+  const [archiveTargetId, setArchiveTargetId] = useState<string | null>(null);
+
+  function selectSession(sessionId: string) {
+    setArchiveTargetId(null);
+    onSelectSession(sessionId);
+  }
+
+  function archiveSession(sessionId: string) {
+    setArchiveTargetId(null);
+    onArchiveSession(sessionId);
+  }
+
   return (
     <aside className="sidebar">
       <div className="sidebar-actions">
@@ -46,20 +62,60 @@ export function Sidebar({
       </div>
 
       <div className="session-list" aria-label="会话列表">
-        {sessions.map((session) => (
-          <button
-            key={session.id}
-            className={`session-item ${session.id === activeSessionId ? "active" : ""}`}
-            onClick={() => onSelectSession(session.id)}
-          >
-            <span className={`status-dot ${session.status}`} />
-            <span className="session-copy">
-              <span className="session-title">{session.title}</span>
-              <span className="session-preview">{session.preview}</span>
-            </span>
-            <span className="session-time">{formatTimeLabel(session.updatedAt)}</span>
-          </button>
-        ))}
+        {sessions.map((session) => {
+          const isArchiveOpen = archiveTargetId === session.id;
+
+          return (
+            <div
+              key={session.id}
+              className={`session-row ${isArchiveOpen ? "archive-open" : ""}`}
+            >
+              <button
+                className="session-archive-action"
+                onClick={() => archiveSession(session.id)}
+                type="button"
+              >
+                <Archive size={14} />
+                <span>归档</span>
+              </button>
+              <div
+                className={`session-item ${session.id === activeSessionId ? "active" : ""}`}
+                onClick={() => selectSession(session.id)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    selectSession(session.id);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+              >
+                <span className={`status-dot ${session.status}`} />
+                <span className="session-copy">
+                  <span className="session-title">{session.title}</span>
+                  <span className="session-preview">{session.preview}</span>
+                </span>
+                <button
+                  className="session-time"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setArchiveTargetId(isArchiveOpen ? null : session.id);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setArchiveTargetId(isArchiveOpen ? null : session.id);
+                    }
+                  }}
+                  type="button"
+                >
+                  {formatTimeLabel(session.updatedAt)}
+                </button>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       <div className="sidebar-footer">

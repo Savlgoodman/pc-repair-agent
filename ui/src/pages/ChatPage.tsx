@@ -80,6 +80,7 @@ export function ChatPage() {
   const [sessions, setSessions] = useState(initialState.sessions);
   const [messages, setMessages] = useState(initialState.messages);
   const [activeSessionId, setActiveSessionId] = useState(initialState.activeSessionId);
+  const [archivedSessionIds, setArchivedSessionIds] = useState<Set<string>>(() => new Set());
   const [searchText, setSearchText] = useState("");
   const [draft, setDraft] = useState("");
   const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
@@ -93,13 +94,18 @@ export function ChatPage() {
   const activeSession = sessions.find((item) => item.id === activeSessionId) ?? sessions[0];
   const activeMessages = messages[activeSession.id] ?? [];
 
-  const filteredSessions = useMemo(() => sessions.filter((item) => {
+  const visibleSessions = useMemo(
+    () => sessions.filter((session) => !archivedSessionIds.has(session.id)),
+    [archivedSessionIds, sessions]
+  );
+
+  const filteredSessions = useMemo(() => visibleSessions.filter((item) => {
     const query = searchText.trim().toLowerCase();
     if (!query) {
       return true;
     }
     return `${item.title} ${item.preview}`.toLowerCase().includes(query);
-  }), [searchText, sessions]);
+  }), [searchText, visibleSessions]);
 
   useEffect(() => {
     let cancelled = false;
@@ -157,6 +163,14 @@ export function ChatPage() {
 
   function createSession() {
     const draftSession = createDraftSession();
+    setArchivedSessionIds((current) => {
+      if (!current.has(DRAFT_SESSION_ID)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.delete(DRAFT_SESSION_ID);
+      return next;
+    });
     setSessions((current) => [
       draftSession,
       ...current.filter((session) => !isDraftSessionId(session.id))
@@ -188,6 +202,26 @@ export function ChatPage() {
         }));
       })
       .catch((error) => console.error(error));
+  }
+
+  function archiveSession(sessionId: string) {
+    setArchivedSessionIds((current) => {
+      const next = new Set(current);
+      next.add(sessionId);
+      return next;
+    });
+
+    if (sessionId !== activeSessionId) {
+      return;
+    }
+
+    const nextSession = sessions.find((session) => session.id !== sessionId && !archivedSessionIds.has(session.id));
+    if (nextSession) {
+      selectSession(nextSession.id);
+      return;
+    }
+
+    createSession();
   }
 
   function flushQueuedMessageDeltas() {
@@ -483,6 +517,7 @@ export function ChatPage() {
     <>
       <Sidebar
         activeSessionId={activeSession.id}
+        onArchiveSession={archiveSession}
         onCreateSession={createSession}
         onSearchTextChange={setSearchText}
         onSelectSession={selectSession}
