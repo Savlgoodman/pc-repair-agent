@@ -19,5 +19,14 @@ async def approval_decision(
     body = await request.json()
     decision = str(body.get("decision", "")).lower()
     allowed = decision in {"allow", "allowed", "yes", "true"}
-    resolved = await services.approvals.resolve(approval_id, allowed)
-    return JSONResponse({"ok": resolved})
+    pending = await services.approvals.resolve(approval_id, allowed)
+    if pending is None:
+        return JSONResponse({"ok": False})
+
+    session = services.conversation_recorder.update_session(
+        pending.conversation_id,
+        {
+            "status": "running" if allowed else "error",
+        },
+    )
+    return JSONResponse({"ok": True, "session": session})

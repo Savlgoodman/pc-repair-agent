@@ -54,6 +54,14 @@ export interface UsageStats {
 
 export type AgentEvent =
   | {
+      type: "conversation.turn.started";
+      conversationId: string;
+      turnId: string;
+      session: Session;
+      userMessage: ChatMessage;
+      assistantMessage: ChatMessage;
+    }
+  | {
       type: "agent.run.started";
       conversationId: string;
       turnId: string;
@@ -130,6 +138,7 @@ export type AgentEvent =
       conversationId: string;
       turnId: string;
       result?: unknown;
+      session?: Session;
       usage?: unknown;
     }
   | {
@@ -137,4 +146,5 @@ export type AgentEvent =
       conversationId: string;
       turnId: string;
       error?: string;
+      session?: Session;
     };

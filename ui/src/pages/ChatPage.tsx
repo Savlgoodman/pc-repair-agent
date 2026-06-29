@@ -4,7 +4,6 @@ import { ChatComposer } from "../features/chat/ChatComposer";
 import { ConversationHeader } from "../features/chat/ConversationHeader";
 import { MessageList } from "../features/chat/MessageList";
 import {
-  createAssistantMessage,
   createEmptySession,
   createId,
   createInitialState,
@@ -13,40 +12,27 @@ import {
   type StoredState,
   updateMessage
 } from "../lib/chatState";
-import { formatJson, formatSessionStatus, titleFromInput } from "../lib/formatters";
+import { formatJson, formatSessionStatus } from "../lib/formatters";
 import { Sidebar } from "../layout/Sidebar";
 import { cancelTurn, sendApprovalDecision, streamAgentTurn } from "../services/agentClient";
 import {
-  createConversation,
   listConversations,
-  loadConversation,
-  saveConversationMessages,
-  saveConversationSession
+  loadConversation
 } from "../services/conversationStore";
 import type { AgentEvent, ApprovalRequest, ChatMessage, Session, ToolCallItem } from "../types";
 
-const LEGACY_STORAGE_KEY = "pc-agent-ui-state-v2";
-const STORAGE_WRITE_DELAY_MS = 800;
+const DRAFT_SESSION_ID = "__draft_session__";
 const STREAM_DELTA_FLUSH_MS = 60;
 
-function loadLegacyStoredState(): StoredState | null {
-  try {
-    const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
-    if (raw) {
-      return normalizeStoredState(JSON.parse(raw) as StoredState);
-    }
-  } catch {
-    localStorage.removeItem(LEGACY_STORAGE_KEY);
-  }
-
-  return null;
+function createDraftSession(): Session {
+  return {
+    ...createEmptySession(),
+    id: DRAFT_SESSION_ID
+  };
 }
 
-async function persistStoredState(state: StoredState) {
-  await Promise.all(state.sessions.map((session) => saveConversationSession(session)));
-  await Promise.all(
-    Object.entries(state.messages).map(([sessionId, items]) => saveConversationMessages(sessionId, items))
-  );
+function isDraftSessionId(sessionId: string) {
+  return sessionId === DRAFT_SESSION_ID;
 }
 
 function upsertToolCall(
@@ -81,7 +67,16 @@ function upsertToolCall(
 }
 
 export function ChatPage() {
-  const initialState = useMemo(createInitialState, []);
+  const initialState = useMemo<StoredState>(() => {
+    const session = createDraftSession();
+    return {
+      activeSessionId: session.id,
+      messages: {
+        [session.id]: []
+      },
+      sessions: [session]
+    };
+  }, []);
   const [sessions, setSessions] = useState(initialState.sessions);
   const [messages, setMessages] = useState(initialState.messages);
   const [activeSessionId, setActiveSessionId] = useState(initialState.activeSessionId);
@@ -90,11 +85,10 @@ export function ChatPage() {
   const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
   const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const latestStoredStateRef = useRef<StoredState>(initialState);
-  const didLoadStoredStateRef = useRef(false);
   const pendingMessageDeltasRef = useRef<Record<string, PendingMessageDelta>>({});
-  const persistTimerRef = useRef<number | null>(null);
   const streamFlushTimerRef = useRef<number | null>(null);
+  const activeAssistantMessageIdRef = useRef<string | null>(null);
+  const activeStreamSessionIdRef = useRef<string | null>(null);
 
   const activeSession = sessions.find((item) => item.id === activeSessionId) ?? sessions[0];
   const activeMessages = messages[activeSession.id] ?? [];
@@ -126,37 +120,18 @@ export function ChatPage() {
             sessions: remoteSessions
           });
         } else {
-          const legacyState = loadLegacyStoredState();
-          if (legacyState) {
-            nextState = legacyState;
-            await persistStoredState(nextState);
-            localStorage.removeItem(LEGACY_STORAGE_KEY);
-          } else {
-            const session = await createConversation();
-            nextState = {
-              activeSessionId: session.id,
-              messages: {
-                [session.id]: []
-              },
-              sessions: [session]
-            };
-          }
+          nextState = initialState;
         }
 
         if (cancelled) {
           return;
         }
 
-        latestStoredStateRef.current = nextState;
         setSessions(nextState.sessions);
         setMessages(nextState.messages);
         setActiveSessionId(nextState.activeSessionId);
       } catch (error) {
         console.error(error);
-      } finally {
-        if (!cancelled) {
-          didLoadStoredStateRef.current = true;
-        }
       }
     }
 
@@ -168,52 +143,11 @@ export function ChatPage() {
   }, []);
 
   useEffect(() => {
-    const state: StoredState = {
-      sessions,
-      messages,
-      activeSessionId
-    };
-    latestStoredStateRef.current = state;
-
-    if (!didLoadStoredStateRef.current) {
-      return;
-    }
-
-    if (persistTimerRef.current !== null) {
-      window.clearTimeout(persistTimerRef.current);
-    }
-
-    persistTimerRef.current = window.setTimeout(() => {
-      void persistStoredState(latestStoredStateRef.current).catch((error) => console.error(error));
-      persistTimerRef.current = null;
-    }, STORAGE_WRITE_DELAY_MS);
-
     return () => {
-      if (persistTimerRef.current !== null) {
-        window.clearTimeout(persistTimerRef.current);
-        persistTimerRef.current = null;
-      }
-    };
-  }, [activeSessionId, messages, sessions]);
-
-  useEffect(() => {
-    const persistNow = () => {
-      if (didLoadStoredStateRef.current) {
-        void persistStoredState(latestStoredStateRef.current).catch((error) => console.error(error));
-      }
-    };
-
-    window.addEventListener("beforeunload", persistNow);
-    window.addEventListener("pagehide", persistNow);
-
-    return () => {
-      window.removeEventListener("beforeunload", persistNow);
-      window.removeEventListener("pagehide", persistNow);
       abortControllerRef.current?.abort();
       if (streamFlushTimerRef.current !== null) {
         window.clearTimeout(streamFlushTimerRef.current);
       }
-      persistNow();
     };
   }, []);
 
@@ -222,20 +156,16 @@ export function ChatPage() {
   }
 
   function createSession() {
-    const fallbackSession = createEmptySession();
-    void createConversation({
-      preview: fallbackSession.preview,
-      title: fallbackSession.title
-    })
-      .then((nextSession) => {
-        setSessions((current) => [nextSession, ...current]);
-        setMessages((current) => ({
-          ...current,
-          [nextSession.id]: []
-        }));
-        setActiveSessionId(nextSession.id);
-      })
-      .catch((error) => console.error(error));
+    const draftSession = createDraftSession();
+    setSessions((current) => [
+      draftSession,
+      ...current.filter((session) => !isDraftSessionId(session.id))
+    ]);
+    setMessages((current) => ({
+      ...current,
+      [draftSession.id]: []
+    }));
+    setActiveSessionId(draftSession.id);
     setDraft("");
     setPendingApproval(null);
   }
@@ -243,7 +173,7 @@ export function ChatPage() {
   function selectSession(sessionId: string) {
     setActiveSessionId(sessionId);
     setPendingApproval(null);
-    if (messages[sessionId]) {
+    if (isDraftSessionId(sessionId)) {
       return;
     }
 
@@ -319,14 +249,40 @@ export function ChatPage() {
     scheduleMessageDeltaFlush();
   }
 
-  function handleAgentEvent(sessionId: string, assistantMessageId: string, event: AgentEvent) {
+  function handleAgentEvent(sessionId: string, event: AgentEvent) {
+    if (event.type === "conversation.turn.started") {
+      const nextSessionId = event.conversationId;
+      activeAssistantMessageIdRef.current = event.assistantMessage.id;
+      activeStreamSessionIdRef.current = nextSessionId;
+      setActiveSessionId(nextSessionId);
+      setSessions((current) => {
+        const withoutDraft = current.filter((session) => session.id !== sessionId);
+        const existingIndex = withoutDraft.findIndex((session) => session.id === nextSessionId);
+        if (existingIndex >= 0) {
+          return withoutDraft.map((session) => (session.id === nextSessionId ? event.session : session));
+        }
+        return [event.session, ...withoutDraft];
+      });
+      setMessages((current) => ({
+        ...Object.fromEntries(Object.entries(current).filter(([id]) => id !== sessionId)),
+        [nextSessionId]: [...(current[nextSessionId] ?? []), event.userMessage, event.assistantMessage]
+      }));
+      return;
+    }
+
+    const assistantMessageId = activeAssistantMessageIdRef.current;
+    const targetSessionId = activeStreamSessionIdRef.current ?? sessionId;
+    if (!assistantMessageId) {
+      return;
+    }
+
     if (event.type === "agent.text.delta") {
-      queueMessageDelta(sessionId, assistantMessageId, event.delta, "text");
+      queueMessageDelta(targetSessionId, assistantMessageId, event.delta, "text");
       return;
     }
 
     if (event.type === "agent.reasoning.delta") {
-      queueMessageDelta(sessionId, assistantMessageId, event.delta, "reasoning");
+      queueMessageDelta(targetSessionId, assistantMessageId, event.delta, "reasoning");
       return;
     }
 
@@ -338,7 +294,7 @@ export function ChatPage() {
     if (event.type === "agent.tool.started") {
       flushQueuedMessageDeltas();
       setMessages((current) =>
-        updateMessage(current, sessionId, assistantMessageId, (message) => ({
+        updateMessage(current, targetSessionId, assistantMessageId, (message) => ({
           ...message,
           toolCalls: upsertToolCall(message.toolCalls, {
             anchorOffset: message.content.length,
@@ -356,7 +312,7 @@ export function ChatPage() {
     if (event.type === "agent.tool.completed") {
       flushQueuedMessageDeltas();
       setMessages((current) =>
-        updateMessage(current, sessionId, assistantMessageId, (message) => ({
+        updateMessage(current, targetSessionId, assistantMessageId, (message) => ({
           ...message,
           toolCalls: upsertToolCall(message.toolCalls, {
             id: event.toolCallId || createId("tool"),
@@ -372,7 +328,7 @@ export function ChatPage() {
     if (event.type === "agent.tool.failed") {
       flushQueuedMessageDeltas();
       setMessages((current) =>
-        updateMessage(current, sessionId, assistantMessageId, (message) => ({
+        updateMessage(current, targetSessionId, assistantMessageId, (message) => ({
           ...message,
           toolCalls: upsertToolCall(message.toolCalls, {
             error: event.error ?? "工具调用失败",
@@ -398,9 +354,9 @@ export function ChatPage() {
         rollback: event.rollback,
         toolCallId: event.toolCallId
       });
-      updateSession(sessionId, (session) => ({ ...session, status: "approval", updatedAt: Date.now() }));
+      updateSession(targetSessionId, (session) => ({ ...session, status: "approval", updatedAt: Date.now() }));
       setMessages((current) =>
-        updateMessage(current, sessionId, assistantMessageId, (message) => ({
+        updateMessage(current, targetSessionId, assistantMessageId, (message) => ({
           ...message,
           toolCalls: upsertToolCall(message.toolCalls, {
             anchorOffset: message.content.length,
@@ -418,26 +374,26 @@ export function ChatPage() {
     if (event.type === "agent.run.completed") {
       flushQueuedMessageDeltas();
       setMessages((current) =>
-        updateMessage(current, sessionId, assistantMessageId, (message) => ({
+        updateMessage(current, targetSessionId, assistantMessageId, (message) => ({
           ...message,
           streaming: false,
           usage: typeof event.usage === "object" && event.usage ? (event.usage as ChatMessage["usage"]) : message.usage
         }))
       );
-      updateSession(sessionId, (session) => ({ ...session, status: "idle", updatedAt: Date.now() }));
+      updateSession(targetSessionId, (session) => event.session ?? { ...session, status: "idle", updatedAt: Date.now() });
       return;
     }
 
     if (event.type === "agent.run.failed") {
       flushQueuedMessageDeltas();
       setMessages((current) =>
-        updateMessage(current, sessionId, assistantMessageId, (message) => ({
+        updateMessage(current, targetSessionId, assistantMessageId, (message) => ({
           ...message,
           error: event.error ?? "Agent 运行失败",
           streaming: false
         }))
       );
-      updateSession(sessionId, (session) => ({ ...session, status: "error", updatedAt: Date.now() }));
+      updateSession(targetSessionId, (session) => event.session ?? { ...session, status: "error", updatedAt: Date.now() });
     }
   }
 
@@ -448,31 +404,12 @@ export function ChatPage() {
     }
 
     const sessionId = activeSession.id;
-    const now = Date.now();
+    const conversationId = isDraftSessionId(sessionId) ? undefined : sessionId;
     const turnId = createId("turn");
-    const assistantMessageId = createId("assistant");
-    const userMessage: ChatMessage = {
-      id: createId("user"),
-      role: "user",
-      content: text,
-      createdAt: now,
-      toolCalls: []
-    };
-    const assistantMessage = createAssistantMessage(assistantMessageId);
-
-    setMessages((current) => ({
-      ...current,
-      [sessionId]: [...(current[sessionId] ?? []), userMessage, assistantMessage]
-    }));
-    updateSession(sessionId, (session) => ({
-      ...session,
-      preview: text,
-      status: "running",
-      title: (messages[sessionId] ?? []).some((message) => message.role === "user") ? session.title : titleFromInput(text),
-      updatedAt: now
-    }));
     setDraft("");
     setActiveTurnId(turnId);
+    activeAssistantMessageIdRef.current = null;
+    activeStreamSessionIdRef.current = null;
     setPendingApproval(null);
 
     const abortController = new AbortController();
@@ -480,22 +417,22 @@ export function ChatPage() {
 
     try {
       await streamAgentTurn({
-        conversationId: sessionId,
+        conversationId,
         input: text,
-        onEvent: (event) => handleAgentEvent(sessionId, assistantMessageId, event),
+        onEvent: (event) => handleAgentEvent(sessionId, event),
         signal: abortController.signal,
         turnId
       });
     } catch (error) {
       if (abortController.signal.aborted) {
-        handleAgentEvent(sessionId, assistantMessageId, {
+        handleAgentEvent(sessionId, {
           conversationId: sessionId,
           error: "用户取消了当前任务。",
           turnId,
           type: "agent.run.failed"
         });
       } else {
-        handleAgentEvent(sessionId, assistantMessageId, {
+        handleAgentEvent(sessionId, {
           conversationId: sessionId,
           error: error instanceof Error ? error.message : String(error),
           turnId,
@@ -504,6 +441,7 @@ export function ChatPage() {
       }
     } finally {
       setActiveTurnId(null);
+      activeStreamSessionIdRef.current = null;
       abortControllerRef.current = null;
     }
   }
@@ -529,10 +467,16 @@ export function ChatPage() {
     const approvalId = pendingApproval.approvalId;
     setPendingApproval(null);
     updateSession(activeSession.id, (session) => ({ ...session, status: "running", updatedAt: Date.now() }));
-    await sendApprovalDecision(approvalId, decision).catch((error) => {
-      updateSession(activeSession.id, (session) => ({ ...session, status: "error", updatedAt: Date.now() }));
-      console.error(error);
-    });
+    await sendApprovalDecision(approvalId, decision)
+      .then((result) => {
+        if (result.session) {
+          updateSession(activeSession.id, () => result.session as Session);
+        }
+      })
+      .catch((error) => {
+        updateSession(activeSession.id, (session) => ({ ...session, status: "error", updatedAt: Date.now() }));
+        console.error(error);
+      });
   }
 
   return (

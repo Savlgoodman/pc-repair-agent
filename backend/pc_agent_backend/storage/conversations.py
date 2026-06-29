@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -21,13 +22,21 @@ def create_conversation_id() -> str:
     return f"{timestamp}-{uuid.uuid4().hex[:16]}"
 
 
-def atomic_write_json(path: Path, value: dict[str, Any]) -> None:
+def atomic_write_json(path: Path, value: dict[str, Any], *, retries: int = 8) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
     temp_path.write_text(
         json.dumps(value, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+    for attempt in range(retries):
+        try:
+            temp_path.replace(path)
+            return
+        except PermissionError:
+            if attempt >= retries - 1:
+                raise
+            time.sleep(0.03 * (attempt + 1))
     temp_path.replace(path)
 
 

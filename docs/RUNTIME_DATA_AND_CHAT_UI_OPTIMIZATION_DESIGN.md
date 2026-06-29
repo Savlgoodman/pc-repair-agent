@@ -274,15 +274,12 @@ events.ndjson
 
 ### 4.3 存储职责
 
-推荐由 backend 提供存储 HTTP API，UI 不直接写文件：
+由 backend 负责写入会话记录，UI 不直接写文件，也不主动提交消息保存请求。
 
 ```text
 GET  /api/conversations
-POST /api/conversations
 GET  /api/conversations/{conversation_id}
-PUT  /api/conversations/{conversation_id}/session
-PUT  /api/conversations/{conversation_id}/messages
-POST /api/conversations/{conversation_id}/messages
+POST /api/turns/stream
 ```
 
 原因：
@@ -290,8 +287,9 @@ POST /api/conversations/{conversation_id}/messages
 1. 浏览器环境不适合直接管理本地文件。
 2. Tauri/Rust 也可以做存储，但当前消息流和 nanobot session 已经在 backend 侧，backend 更容易保证 `conversationId` 与 nanobot `session_key` 一致。
 3. 后续打包为 sidecar 后，backend 可以继续使用同一套 data 目录。
+4. 流式运行过程中只有 backend 能完整看到 user message、assistant message、工具调用、审批和最终状态，因此保存逻辑应集中在 backend。
 
-前端新增抽象：
+前端服务只负责读取会话：
 
 ```text
 ui/src/services/conversationStore.ts
@@ -302,14 +300,19 @@ ui/src/services/conversationStore.ts
 ```ts
 interface ConversationStore {
   list(): Promise<Session[]>;
-  create(input?: { title?: string }): Promise<Session>;
-  load(sessionId: string): Promise<ChatMessage[]>;
-  saveSession(session: Session): Promise<void>;
-  saveMessages(sessionId: string, messages: ChatMessage[]): Promise<void>;
+  load(sessionId: string): Promise<{ session: Session; messages: ChatMessage[] }>;
 }
 ```
 
-`App.tsx` 不再直接调用 `localStorage`，只依赖 `ConversationStore`。
+`POST /api/turns/stream` 在 backend 内部负责：
+
+1. 创建或更新当前 `session.json`。
+2. 追加 user message 和 assistant message。
+3. 将 agent 流式事件折叠进当前 assistant message。
+4. 更新工具调用、审批状态、错误和运行完成状态。
+5. 当请求未携带 `conversationId` 时创建新的会话 id，并通过 `conversation.turn.started` 返回给 UI。
+
+`App.tsx` 不再直接调用 `localStorage`，也不调用保存消息或保存 session 的 API。
 
 ## 5. 权限确认卡片
 
@@ -528,27 +531,29 @@ ToolCallGroup.anchorOffset = firstTool.anchorOffset
 ```text
 ensureBackend()
   -> GET /api/conversations
-  -> 如果为空，POST /api/conversations 创建空会话
-  -> GET /api/conversations/{id} 加载消息
+  -> 如果为空，UI 显示无 id 的空白草稿页
+  -> 点击已有会话时 GET /api/conversations/{id} 全量加载消息
 ```
 
 发送消息流程：
 
 ```text
-UI append user message
-  -> POST /api/conversations/{id}/messages
-  -> UI append assistant placeholder
-  -> POST /api/conversations/{id}/messages
-  -> POST /api/turns/stream
-  -> 流式事件更新 assistant message
-  -> 节流 PUT /api/conversations/{id}/messages
+UI POST /api/turns/stream
+  -> 如果不携带 conversationId，backend 创建新会话 id
+  -> backend 创建运行态 user message 和 assistant message
+  -> backend 返回 conversation.turn.started，包含真实 conversationId
+  -> UI 展示后端返回的两条消息
+  -> backend 将流式事件折叠到内存运行态
+  -> UI 根据流式事件更新当前展示态
+  -> 一轮完成或失败时，backend 一次性写入 session.json 和 messages.json
 ```
 
-为了降低写入频率，建议：
+写入职责：
 
-1. 文本 delta 每 800ms 或 run 完成时保存一次。
-2. 工具事件、审批事件、错误和完成事件立即保存。
-3. 页面关闭前触发一次保存。
+1. UI 不调用保存 session 或保存 messages 的 API。
+2. backend 在 `/api/turns/stream` 内聚合 user message、assistant message、工具调用、审批状态、错误和完成状态。
+3. UI 切换会话时只通过 `GET /api/conversations/{id}` 重新加载后端记录。
+4. 会话记录只在一轮对话完成或失败后落盘，避免流式阶段高频写文件。
 
 ### 7.3 配置路径参数
 
@@ -604,7 +609,7 @@ AgentEvent
 迁移重点：
 
 1. 删除 `STORAGE_KEY` 和直接 `localStorage` 调用。
-2. 用 `ConversationStore` 初始化会话和消息。
+2. 用 `ConversationStore` 初始化会话和消息，但不提供保存消息 API。
 3. 审批卡片从 `chat-content` 移到 `composer-wrap` 内。
 4. `ToolCallCard` 支持 `collapsed`。
 5. `AssistantMessageContent` 从 tool list 改为 tool group list。
@@ -645,6 +650,7 @@ backend/pc_agent_backend/
     agent.py              # 统一 AgentAdapter 协议
   services/
     approvals.py          # ApprovalBroker
+    conversation_recorder.py # 将流式事件折叠写入会话 JSON
     runtime.py            # AppServices
   storage/
     conversations.py
@@ -670,11 +676,10 @@ Agent adapter 边界：
 ### 阶段 2：消息存储迁移到 backend JSON
 
 1. 新增 conversation API。
-2. UI 新增 `ConversationStore`。
+2. UI 新增只读型 `ConversationStore`，负责列出会话和加载会话。
 3. UI 初始化从 backend 加载记录。
-4. 暂时保留读取旧 `localStorage` 的一次性迁移逻辑：
-   - 如果 backend record 为空且 localStorage 有旧状态，则导入到 backend。
-   - 导入成功后删除旧 localStorage。
+4. backend 在 `/api/turns/stream` 中负责生成新会话 id，并在一轮结束后写入 user message、assistant message 和后续流式事件。
+5. 删除旧 `localStorage` 迁移逻辑，开发阶段直接以 backend record 为准。
 
 ### 阶段 3：审批卡片和工具卡片优化
 

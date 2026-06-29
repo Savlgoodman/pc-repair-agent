@@ -254,16 +254,18 @@ npm exec --prefix ui -- tauri icon .\src-tauri\icons\app-icon.svg --output .\src
 1. `ui/src/types.ts` 定义会话、消息、工具调用、审批请求和 Agent 事件类型。
 2. `ui/src/services/agentClient.ts` 负责调用 Tauri `ensure_backend`，并读取 backend NDJSON 流。
 3. `ui/src/components/MessageRenderer.tsx` 使用 `streamdown` 渲染 assistant Markdown。
-4. `ui/src/services/conversationStore.ts` 通过 backend conversation API 读写本地 JSON 会话记录。
-5. `localStorage` 仅保留旧数据一次性迁移读取，不再保存主消息记录。
-6. backend 未连接或配置缺失时，UI 会展示真实错误，不生成假回复。
+4. `ui/src/services/conversationStore.ts` 只通过 backend conversation API 读取会话列表和加载会话内容。
+5. 点击新对话只打开无 id 的空白草稿页；首次发送时不携带 `conversationId`，由 backend 在 `/api/turns/stream` 中生成真实会话 id 并返回给 UI。
+6. 消息与 session 状态写入由 backend 在一轮对话结束时完成，UI 只根据流式事件更新当前展示态。
+7. UI 不再使用 `localStorage` 保存或迁移主消息记录。
+8. backend 未连接或配置缺失时，UI 会展示真实错误，不生成假回复。
 
 ## 后续集成建议
 
 UI 与后台集成时建议优先拆分以下边界：
 
-1. 会话存储接口：创建会话、读取会话列表、读取消息、追加消息。
-2. Agent 运行接口：发送用户输入、接收流式文本、接收工具调用事件。
+1. 会话读取接口：读取会话列表、读取消息。
+2. Agent 运行接口：发送用户输入、接收流式文本、接收工具调用事件；无 `conversationId` 时由 backend 创建新会话。
 3. 审批接口：展示高风险命令说明、风险点、影响范围和确认结果。
 4. Skill 展示接口：展示驱动安装、笔记本驱动下载、运行时补全等技能入口和执行状态。
 5. 本机诊断接口：展示硬件、系统、运行时环境和驱动扫描结果。

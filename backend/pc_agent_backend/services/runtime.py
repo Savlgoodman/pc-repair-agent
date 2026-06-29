@@ -6,6 +6,7 @@ from pathlib import Path
 from pc_agent_backend.core.config import RuntimeConfig
 from pc_agent_backend.schemas.agent import AgentAdapter
 from pc_agent_backend.services.approvals import ApprovalBroker
+from pc_agent_backend.services.conversation_recorder import ConversationRecorder
 from pc_agent_backend.storage.conversations import ConversationStore
 
 
@@ -15,4 +16,5 @@ class AppServices:
     workspace: Path
     approvals: ApprovalBroker
     conversation_store: ConversationStore
+    conversation_recorder: ConversationRecorder
     agent_adapter: AgentAdapter

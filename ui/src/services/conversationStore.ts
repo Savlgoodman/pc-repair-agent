@@ -5,10 +5,6 @@ interface ListConversationsResponse {
   sessions: Session[];
 }
 
-interface CreateConversationResponse {
-  session: Session;
-}
-
 interface LoadConversationResponse {
   session: Session;
   messages: ChatMessage[];
@@ -36,39 +32,10 @@ export async function listConversations(): Promise<Session[]> {
   return response.sessions;
 }
 
-export async function createConversation(input?: {
-  preview?: string;
-  title?: string;
-}): Promise<Session> {
-  const response = await requestJson<CreateConversationResponse>("/api/conversations", {
-    body: JSON.stringify(input ?? {}),
-    method: "POST"
-  });
-  return response.session;
-}
-
 export async function loadConversation(sessionId: string): Promise<{
   messages: ChatMessage[];
   session: Session;
 }> {
   const response = await requestJson<LoadConversationResponse>(`/api/conversations/${sessionId}`);
   return response;
-}
-
-export async function saveConversationSession(session: Session): Promise<Session> {
-  const response = await requestJson<CreateConversationResponse>(`/api/conversations/${session.id}/session`, {
-    body: JSON.stringify({ session }),
-    method: "PUT"
-  });
-  return response.session;
-}
-
-export async function saveConversationMessages(
-  sessionId: string,
-  messages: ChatMessage[],
-): Promise<void> {
-  await requestJson<{ ok: boolean }>(`/api/conversations/${sessionId}/messages`, {
-    body: JSON.stringify({ messages }),
-    method: "PUT"
-  });
 }

@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
-import type { AgentEvent } from "../types";
+import type { AgentEvent, Session } from "../types";
 
 interface BackendStatus {
   base_url?: string;
@@ -9,7 +9,7 @@ interface BackendStatus {
 }
 
 export interface StartTurnOptions {
-  conversationId: string;
+  conversationId?: string;
   input: string;
   signal?: AbortSignal;
   turnId: string;
@@ -39,7 +39,7 @@ export async function streamAgentTurn(options: StartTurnOptions): Promise<void> 
   const baseUrl = await ensureBackend();
   const response = await fetch(`${baseUrl}/api/turns/stream`, {
     body: JSON.stringify({
-      conversationId: options.conversationId,
+      ...(options.conversationId ? { conversationId: options.conversationId } : {}),
       input: options.input,
       turnId: options.turnId
     }),
@@ -92,7 +92,7 @@ export async function streamAgentTurn(options: StartTurnOptions): Promise<void> 
 export async function sendApprovalDecision(
   approvalId: string,
   decision: "allow" | "deny",
-): Promise<void> {
+): Promise<{ session?: Session }> {
   const baseUrl = await ensureBackend();
   const response = await fetch(`${baseUrl}/api/approvals/${approvalId}/decision`, {
     body: JSON.stringify({ decision }),
@@ -105,6 +105,8 @@ export async function sendApprovalDecision(
   if (!response.ok) {
     throw new Error(`Backend returned ${response.status}`);
   }
+
+  return response.json() as Promise<{ session?: Session }>;
 }
 
 export async function cancelTurn(turnId: string): Promise<void> {

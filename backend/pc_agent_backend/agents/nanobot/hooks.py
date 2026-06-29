@@ -33,7 +33,11 @@ class UiApprovalHook(AgentHook):
                 continue
 
             approval_id = f"approval-{uuid.uuid4().hex}"
-            future = await self._approvals.create(approval_id)
+            future = await self._approvals.create(
+                approval_id=approval_id,
+                conversation_id=self._conversation_id,
+                turn_id=self._turn_id,
+            )
             risk = describe_risk(call.name)
             await self._output_queue.put(
                 {
