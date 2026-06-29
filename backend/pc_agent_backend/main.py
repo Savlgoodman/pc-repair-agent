@@ -30,12 +30,10 @@ from nanobot import (
 )
 from nanobot.agent import AgentHook, AgentHookContext
 
+from .config import RuntimeConfig, resolve_runtime_config
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = BACKEND_ROOT.parent
-BACKEND_LOCAL_CONFIG = BACKEND_ROOT / "config" / "nanobot_config.local.json"
-DEMO_LOCAL_CONFIG = REPO_ROOT / "demo" / "nanobot_config.local.json"
-DEFAULT_CONFIG_PATH = BACKEND_LOCAL_CONFIG if BACKEND_LOCAL_CONFIG.exists() else DEMO_LOCAL_CONFIG
 DEFAULT_WORKSPACE = REPO_ROOT
 
 HIGH_RISK_TOOL_NAMES = {
@@ -290,7 +288,7 @@ def map_nanobot_event(event: Any, *, conversation_id: str, turn_id: str) -> dict
     }
 
 
-def create_app(config_path: Path, workspace: Path) -> FastAPI:
+def create_app(runtime_config: RuntimeConfig, workspace: Path) -> FastAPI:
     app = FastAPI(title="PC Repair Agent Backend", version="0.1.0")
     app.add_middleware(
         CORSMiddleware,
@@ -304,7 +302,10 @@ def create_app(config_path: Path, workspace: Path) -> FastAPI:
     async def health() -> dict[str, Any]:
         return {
             "ok": True,
-            "configExists": config_path.exists(),
+            "env": runtime_config.env,
+            "dataDir": str(runtime_config.data_dir),
+            "configPath": str(runtime_config.nanobot_config_path),
+            "configExists": runtime_config.nanobot_config_path.exists(),
             "apiKeyPresent": bool(os.environ.get("DEEPSEEK_API_KEY")),
             "workspace": str(workspace),
         }
@@ -344,13 +345,13 @@ def create_app(config_path: Path, workspace: Path) -> FastAPI:
                 )
                 return
 
-            if not config_path.exists():
+            if not runtime_config.nanobot_config_path.exists():
                 yield encode_event(
                     {
                         "type": "agent.run.failed",
                         "conversationId": conversation_id,
                         "turnId": turn_id,
-                        "error": f"nanobot 配置文件不存在：{config_path}",
+                        "error": f"nanobot 配置文件不存在：{runtime_config.nanobot_config_path}",
                     }
                 )
                 return
@@ -361,7 +362,7 @@ def create_app(config_path: Path, workspace: Path) -> FastAPI:
             async def produce_events() -> None:
                 try:
                     async with Nanobot.from_config(
-                        config_path=config_path,
+                        config_path=runtime_config.nanobot_config_path,
                         workspace=workspace,
                     ) as bot:
                         run = await bot.run_streamed(
@@ -447,7 +448,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="PC Repair Agent backend")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", default=8765, type=int)
-    parser.add_argument("--config", default=str(DEFAULT_CONFIG_PATH))
+    parser.add_argument("--config", default=None)
+    parser.add_argument("--data-dir", default=None)
     parser.add_argument("--workspace", default=str(DEFAULT_WORKSPACE))
     return parser.parse_args()
 
@@ -455,9 +457,13 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     configure_stdio_encoding()
     args = parse_args()
-    config_path = Path(args.config).resolve()
     workspace = Path(args.workspace).resolve()
-    app = create_app(config_path=config_path, workspace=workspace)
+    runtime_config = resolve_runtime_config(
+        workspace=workspace,
+        config_override=Path(args.config) if args.config else None,
+        data_dir_override=Path(args.data_dir) if args.data_dir else None,
+    )
+    app = create_app(runtime_config=runtime_config, workspace=workspace)
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 
 

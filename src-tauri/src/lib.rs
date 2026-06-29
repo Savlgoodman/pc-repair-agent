@@ -58,7 +58,6 @@ fn ensure_backend(state: tauri::State<'_, BackendState>) -> Result<BackendStatus
         return Err(format!("backend directory not found: {}", backend_dir.display()));
     }
 
-    let config_path = choose_config_path(&repo_root);
     let mut command = Command::new("uv");
     command
         .arg("run")
@@ -69,8 +68,6 @@ fn ensure_backend(state: tauri::State<'_, BackendState>) -> Result<BackendStatus
         .arg(BACKEND_HOST)
         .arg("--port")
         .arg(BACKEND_PORT.to_string())
-        .arg("--config")
-        .arg(config_path)
         .arg("--workspace")
         .arg(&repo_root)
         .current_dir(&backend_dir)
@@ -129,24 +126,4 @@ fn repo_root() -> Result<PathBuf, String> {
             .ok_or_else(|| format!("failed to derive repo root from {}", cwd.display()));
     }
     Ok(cwd)
-}
-
-fn choose_config_path(repo_root: &Path) -> PathBuf {
-    let backend_local = repo_root
-        .join("backend")
-        .join("config")
-        .join("nanobot_config.local.json");
-    if backend_local.exists() {
-        return backend_local;
-    }
-
-    let demo_local = repo_root.join("demo").join("nanobot_config.local.json");
-    if demo_local.exists() {
-        return demo_local;
-    }
-
-    repo_root
-        .join("backend")
-        .join("config")
-        .join("nanobot_config.example.json")
 }
