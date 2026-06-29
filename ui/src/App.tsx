@@ -29,9 +29,16 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 
 import { MessageRenderer } from "./components/MessageRenderer";
 import { cancelTurn, sendApprovalDecision, streamAgentTurn } from "./services/agentClient";
+import {
+  createConversation,
+  listConversations,
+  loadConversation,
+  saveConversationMessages,
+  saveConversationSession
+} from "./services/conversationStore";
 import type { AgentEvent, ApprovalRequest, ChatMessage, Session, ToolCallItem } from "./types";
 
-const STORAGE_KEY = "pc-agent-ui-state-v2";
+const LEGACY_STORAGE_KEY = "pc-agent-ui-state-v2";
 const STORAGE_WRITE_DELAY_MS = 800;
 const STREAM_DELTA_FLUSH_MS = 60;
 
@@ -122,17 +129,24 @@ function normalizeStoredState(value: StoredState): StoredState {
   };
 }
 
-function loadInitialState(): StoredState {
+function loadLegacyStoredState(): StoredState | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
     if (raw) {
       return normalizeStoredState(JSON.parse(raw) as StoredState);
     }
   } catch {
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
   }
 
-  return createInitialState();
+  return null;
+}
+
+async function persistStoredState(state: StoredState) {
+  await Promise.all(state.sessions.map((session) => saveConversationSession(session)));
+  await Promise.all(
+    Object.entries(state.messages).map(([sessionId, items]) => saveConversationMessages(sessionId, items))
+  );
 }
 
 async function handleWindowAction(action: "minimize" | "maximize" | "close") {
@@ -476,7 +490,7 @@ const MessageItem = memo(function MessageItem({ message }: { message: ChatMessag
 });
 
 function App() {
-  const initialState = useMemo(loadInitialState, []);
+  const initialState = useMemo(createInitialState, []);
   const [sessions, setSessions] = useState(initialState.sessions);
   const [messages, setMessages] = useState(initialState.messages);
   const [activeSessionId, setActiveSessionId] = useState(initialState.activeSessionId);
@@ -486,6 +500,7 @@ function App() {
   const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const latestStoredStateRef = useRef<StoredState>(initialState);
+  const didLoadStoredStateRef = useRef(false);
   const pendingMessageDeltasRef = useRef<Record<string, PendingMessageDelta>>({});
   const persistTimerRef = useRef<number | null>(null);
   const streamFlushTimerRef = useRef<number | null>(null);
@@ -502,6 +517,66 @@ function App() {
   }), [searchText, sessions]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function loadStoredState() {
+      try {
+        const remoteSessions = await listConversations();
+        let nextState: StoredState;
+
+        if (remoteSessions.length > 0) {
+          const activeId = remoteSessions[0].id;
+          const loaded = await loadConversation(activeId);
+          nextState = normalizeStoredState({
+            activeSessionId: activeId,
+            messages: {
+              [activeId]: loaded.messages
+            },
+            sessions: remoteSessions
+          });
+        } else {
+          const legacyState = loadLegacyStoredState();
+          if (legacyState) {
+            nextState = legacyState;
+            await persistStoredState(nextState);
+            localStorage.removeItem(LEGACY_STORAGE_KEY);
+          } else {
+            const session = await createConversation();
+            nextState = {
+              activeSessionId: session.id,
+              messages: {
+                [session.id]: []
+              },
+              sessions: [session]
+            };
+          }
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        latestStoredStateRef.current = nextState;
+        setSessions(nextState.sessions);
+        setMessages(nextState.messages);
+        setActiveSessionId(nextState.activeSessionId);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        if (!cancelled) {
+          didLoadStoredStateRef.current = true;
+        }
+      }
+    }
+
+    void loadStoredState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     const state: StoredState = {
       sessions,
       messages,
@@ -509,12 +584,16 @@ function App() {
     };
     latestStoredStateRef.current = state;
 
+    if (!didLoadStoredStateRef.current) {
+      return;
+    }
+
     if (persistTimerRef.current !== null) {
       window.clearTimeout(persistTimerRef.current);
     }
 
     persistTimerRef.current = window.setTimeout(() => {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(latestStoredStateRef.current));
+      void persistStoredState(latestStoredStateRef.current).catch((error) => console.error(error));
       persistTimerRef.current = null;
     }, STORAGE_WRITE_DELAY_MS);
 
@@ -528,7 +607,9 @@ function App() {
 
   useEffect(() => {
     const persistNow = () => {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(latestStoredStateRef.current));
+      if (didLoadStoredStateRef.current) {
+        void persistStoredState(latestStoredStateRef.current).catch((error) => console.error(error));
+      }
     };
 
     window.addEventListener("beforeunload", persistNow);
@@ -550,15 +631,42 @@ function App() {
   }
 
   function createSession() {
-    const nextSession = createEmptySession();
-    setSessions((current) => [nextSession, ...current]);
-    setMessages((current) => ({
-      ...current,
-      [nextSession.id]: []
-    }));
-    setActiveSessionId(nextSession.id);
+    const fallbackSession = createEmptySession();
+    void createConversation({
+      preview: fallbackSession.preview,
+      title: fallbackSession.title
+    })
+      .then((nextSession) => {
+        setSessions((current) => [nextSession, ...current]);
+        setMessages((current) => ({
+          ...current,
+          [nextSession.id]: []
+        }));
+        setActiveSessionId(nextSession.id);
+      })
+      .catch((error) => console.error(error));
     setDraft("");
     setPendingApproval(null);
+  }
+
+  function selectSession(sessionId: string) {
+    setActiveSessionId(sessionId);
+    setPendingApproval(null);
+    if (messages[sessionId]) {
+      return;
+    }
+
+    void loadConversation(sessionId)
+      .then((conversation) => {
+        setSessions((current) =>
+          current.map((session) => (session.id === sessionId ? conversation.session : session))
+        );
+        setMessages((current) => ({
+          ...current,
+          [sessionId]: conversation.messages
+        }));
+      })
+      .catch((error) => console.error(error));
   }
 
   function flushQueuedMessageDeltas() {
@@ -900,7 +1008,7 @@ function App() {
               <button
                 key={session.id}
                 className={`session-item ${session.id === activeSession.id ? "active" : ""}`}
-                onClick={() => setActiveSessionId(session.id)}
+                onClick={() => selectSession(session.id)}
               >
                 <span className={`status-dot ${session.status}`} />
                 <span className="session-copy">
