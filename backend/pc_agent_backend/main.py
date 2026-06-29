@@ -31,6 +31,7 @@ from nanobot import (
 from nanobot.agent import AgentHook, AgentHookContext
 
 from .config import RuntimeConfig, resolve_runtime_config
+from .storage.conversations import ConversationStore
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = BACKEND_ROOT.parent
@@ -290,6 +291,7 @@ def map_nanobot_event(event: Any, *, conversation_id: str, turn_id: str) -> dict
 
 def create_app(runtime_config: RuntimeConfig, workspace: Path) -> FastAPI:
     app = FastAPI(title="PC Repair Agent Backend", version="0.1.0")
+    conversation_store = ConversationStore(runtime_config.record_dir)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -317,6 +319,51 @@ def create_app(runtime_config: RuntimeConfig, workspace: Path) -> FastAPI:
         allowed = decision in {"allow", "allowed", "yes", "true"}
         resolved = await APPROVALS.resolve(approval_id, allowed)
         return JSONResponse({"ok": resolved})
+
+    @app.get("/api/conversations")
+    async def list_conversations() -> dict[str, Any]:
+        return {"sessions": conversation_store.list_sessions()}
+
+    @app.post("/api/conversations")
+    async def create_conversation(request: Request) -> JSONResponse:
+        body = await request.json()
+        session = conversation_store.create_session(
+            title=body.get("title") if isinstance(body.get("title"), str) else None,
+            preview=body.get("preview") if isinstance(body.get("preview"), str) else None,
+        )
+        return JSONResponse({"session": session})
+
+    @app.get("/api/conversations/{conversation_id}")
+    async def get_conversation(conversation_id: str) -> JSONResponse:
+        conversation = conversation_store.get_conversation(conversation_id)
+        if conversation is None:
+            return JSONResponse({"error": "conversation not found"}, status_code=404)
+        return JSONResponse(conversation)
+
+    @app.put("/api/conversations/{conversation_id}/session")
+    async def save_conversation_session(conversation_id: str, request: Request) -> JSONResponse:
+        body = await request.json()
+        session_payload = body.get("session") if isinstance(body.get("session"), dict) else body
+        session = conversation_store.save_session(conversation_id, session_payload)
+        return JSONResponse({"session": session})
+
+    @app.put("/api/conversations/{conversation_id}/messages")
+    async def save_conversation_messages(conversation_id: str, request: Request) -> JSONResponse:
+        body = await request.json()
+        messages = body.get("messages")
+        if not isinstance(messages, list):
+            return JSONResponse({"error": "messages must be a list"}, status_code=400)
+        conversation_store.save_messages(conversation_id, messages)
+        return JSONResponse({"ok": True})
+
+    @app.post("/api/conversations/{conversation_id}/messages")
+    async def append_conversation_message(conversation_id: str, request: Request) -> JSONResponse:
+        body = await request.json()
+        message = body.get("message") if isinstance(body.get("message"), dict) else body
+        if not isinstance(message, dict):
+            return JSONResponse({"error": "message must be an object"}, status_code=400)
+        messages = conversation_store.append_message(conversation_id, message)
+        return JSONResponse({"messages": messages})
 
     @app.post("/api/turns/{turn_id}/cancel")
     async def cancel_turn(turn_id: str) -> JSONResponse:
