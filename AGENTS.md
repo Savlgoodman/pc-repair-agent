@@ -1,6 +1,6 @@
 # PC Repair Agent - Agent 协作规范
 
-本文件面向所有参与本仓库工作的 AI Coding Agent 和开发者。项目主体代码尚未正式搭建，因此当前只记录通用协作规则、文档入口、提交规范和文件编码要求；具体启动方式、模块职责和实现细节以后随项目落地再补充。
+本文件面向所有参与本仓库工作的 AI Coding Agent 和开发者。当前 UI 与 Tauri 桌面壳已进入原型阶段，Python 后台、Agent Runtime 和审批网关等模块仍在规划与验证中。本文件只记录高频协作规则、文档入口、简要启动入口、提交规范和文件编码要求；完整实现细节统一沉淀到 `docs/` 下的专项文档。
 
 ## AI Coding 规范
 
@@ -51,6 +51,8 @@ Path("docs/PRD.md").write_text(content, encoding="utf-8")
 | `docs/PRD.md` | 产品需求文档，记录产品定位、核心功能、MVP 范围和路线规划 |
 | `docs/ARCHITECTURE.md` | 架构设计文档，记录 Tauri、Python 后台、Agent Runtime、审批网关等设计方向 |
 | `docs/PROJECT_STRUCTURE.md` | 项目目录结构规划，记录未来代码目录和职责边界 |
+| `docs/UI_DEVELOPMENT.md` | UI 与 Tauri 桌面壳开发文档，记录环境依赖、启动流程、目录职责和常见问题 |
+| `docs/UI_NANOBOT_INTEGRATION_DESIGN.md` | UI 去 mock、接入 nanobot Python 后台和 streamdown Markdown 渲染的设计文档 |
 | `docs/NANOBOT_SDK_RESEARCH.md` | nanobot SDK 调研记录，包含流式输出、工具审批、自定义 Tool、Skill 注入和配置建议 |
 | `demo/README.md` | nanobot 命令行 demo 使用说明 |
 
@@ -58,8 +60,54 @@ Path("docs/PRD.md").write_text(content, encoding="utf-8")
 
 1. 做产品需求相关任务，先读 `docs/PRD.md`。
 2. 做架构和模块边界相关任务，先读 `docs/ARCHITECTURE.md` 和 `docs/PROJECT_STRUCTURE.md`。
-3. 做 nanobot、Skill、Tool、审批流相关任务，先读 `docs/NANOBOT_SDK_RESEARCH.md`。
-4. 做 demo 相关任务，先读 `demo/README.md` 和 `demo/pyproject.toml`。
+3. 做 UI、Tauri 桌面壳、前端交互和启动环境相关任务，先读 `docs/UI_DEVELOPMENT.md`。
+4. 做 UI 去 mock、接入 nanobot、流式事件、审批闭环和 Markdown 渲染相关任务，先读 `docs/UI_NANOBOT_INTEGRATION_DESIGN.md`。
+5. 做 nanobot、Skill、Tool、审批流相关任务，先读 `docs/NANOBOT_SDK_RESEARCH.md`。
+6. 做 demo 相关任务，先读 `demo/README.md` 和 `demo/pyproject.toml`。
+
+## 开发与启动入口
+
+当前已落地的桌面 UI 原型由 `ui/`、`src-tauri/` 和 `backend/` 组成：
+
+1. `ui/`：React + Vite 前端 UI，使用 `streamdown` 渲染 assistant Markdown，当前由 backend 流式事件驱动消息。
+2. `src-tauri/`：Tauri 2 桌面壳，默认窗口为 `1200x756`，最小窗口为 `900x620`。
+3. `backend/`：Python nanobot 后台，使用 uv 管理依赖，提供本地 NDJSON 流式接口。
+4. `scripts/dev-tauri.ps1`：Windows 本地开发启动脚本，会临时设置 VS Build Tools、Cargo PATH 和代理环境。
+
+常用命令：
+
+```powershell
+npm install --prefix ui
+npm run backend:sync
+npm run ui:build
+npm run tauri:dev:win
+```
+
+Windows 一键开发启动：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-dev.ps1
+```
+
+如只需要启动前端浏览器调试：
+
+```powershell
+npm run ui:dev
+```
+
+如只需要单独启动 Python backend：
+
+```powershell
+npm run backend:dev
+```
+
+如需要自定义代理端口，可直接调用脚本：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\dev-tauri.ps1 -Proxy http://127.0.0.1:7899
+```
+
+完整开发步骤、环境依赖、排错说明和 UI 结构说明见 `docs/UI_DEVELOPMENT.md`。
 
 ## 提交规范
 
@@ -105,5 +153,4 @@ config.example.json
 
 ## 当前阶段约束
 
-项目主体代码尚未正式搭建，当前阶段不要在 `AGENTS.md` 中写死具体启动方式、端口、服务名称或模块实现细节。等 `ui/`、`backend/`、`src-tauri/` 等主体结构落地后，再补充对应的开发、启动和测试说明。
-
+当前 UI 与 Tauri 桌面壳已进入原型阶段，`AGENTS.md` 只保留高频入口和协作规范；详细设计、启动流程、排错步骤和模块说明应写入 `docs/` 下的专项文档。后续 Python 后台、Agent Runtime、审批网关等模块落地后，也应优先补充对应专项文档，再在本文件中加入简要入口。
