@@ -1,6 +1,7 @@
 export type SessionStatus = "idle" | "running" | "approval" | "error";
 
 export interface Session {
+  archived?: boolean;
   id: string;
   title: string;
   preview: string;
@@ -68,6 +69,37 @@ export interface SystemOverview {
   collectedAt: number;
   profile: SystemProfileItem[];
   usage: SystemUsageMetric[];
+}
+
+export interface ModelProviderModelsResult {
+  endpoint: string;
+  models: string[];
+}
+
+export interface AppAboutGitInfo {
+  branch: string;
+  commit: string;
+  remote: string;
+}
+
+export interface AppDataUsageItem {
+  bytes: number;
+  label: string;
+  path: string;
+  size: string;
+}
+
+export interface AppAboutInfo {
+  agentAdapter: string;
+  appVersion: string;
+  backendVersion: string;
+  dataDir: string;
+  dataDirBytes: number;
+  dataDirSize: string;
+  dataUsage: AppDataUsageItem[];
+  git: AppAboutGitInfo;
+  runtimeEnv: string;
+  workspace: string;
 }
 
 export type AgentEvent =

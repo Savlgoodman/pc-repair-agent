@@ -15,15 +15,19 @@ import {
 import { formatJson, formatSessionStatus } from "../lib/formatters";
 import { Sidebar } from "../layout/Sidebar";
 import { OverviewPage } from "./OverviewPage";
+import { SettingsPage } from "./SettingsPage";
 import { cancelTurn, sendApprovalDecision, streamAgentTurn } from "../services/agentClient";
 import {
+  deleteConversation,
   listConversations,
-  loadConversation
+  loadConversation,
+  updateConversationArchiveState
 } from "../services/conversationStore";
 import type { AgentEvent, ApprovalRequest, ChatMessage, Session, ToolCallItem } from "../types";
 
 const DRAFT_SESSION_ID = "__draft_session__";
 const STREAM_DELTA_FLUSH_MS = 60;
+type ActiveView = "chat" | "overview" | "settings";
 
 function createDraftSession(): Session {
   return {
@@ -81,7 +85,7 @@ export function ChatPage() {
   const [sessions, setSessions] = useState(initialState.sessions);
   const [messages, setMessages] = useState(initialState.messages);
   const [activeSessionId, setActiveSessionId] = useState(initialState.activeSessionId);
-  const [activeView, setActiveView] = useState<"chat" | "overview">("chat");
+  const [activeView, setActiveView] = useState<ActiveView>("chat");
   const [archivedSessionIds, setArchivedSessionIds] = useState<Set<string>>(() => new Set());
   const [searchText, setSearchText] = useState("");
   const [draft, setDraft] = useState("");
@@ -98,6 +102,10 @@ export function ChatPage() {
 
   const visibleSessions = useMemo(
     () => sessions.filter((session) => !archivedSessionIds.has(session.id)),
+    [archivedSessionIds, sessions]
+  );
+  const archivedSessions = useMemo(
+    () => sessions.filter((session) => archivedSessionIds.has(session.id)),
     [archivedSessionIds, sessions]
   );
 
@@ -118,15 +126,27 @@ export function ChatPage() {
         let nextState: StoredState;
 
         if (remoteSessions.length > 0) {
-          const activeId = remoteSessions[0].id;
-          const loaded = await loadConversation(activeId);
-          nextState = normalizeStoredState({
-            activeSessionId: activeId,
-            messages: {
-              [activeId]: loaded.messages
-            },
-            sessions: remoteSessions
-          });
+          const firstVisibleSession = remoteSessions.find((session) => !session.archived);
+          if (firstVisibleSession) {
+            const activeId = firstVisibleSession.id;
+            const loaded = await loadConversation(activeId);
+            nextState = normalizeStoredState({
+              activeSessionId: activeId,
+              messages: {
+                [activeId]: loaded.messages
+              },
+              sessions: remoteSessions
+            });
+          } else {
+            const draftSession = createDraftSession();
+            nextState = normalizeStoredState({
+              activeSessionId: draftSession.id,
+              messages: {
+                [draftSession.id]: []
+              },
+              sessions: [draftSession, ...remoteSessions]
+            });
+          }
         } else {
           nextState = initialState;
         }
@@ -138,6 +158,7 @@ export function ChatPage() {
         setSessions(nextState.sessions);
         setMessages(nextState.messages);
         setActiveSessionId(nextState.activeSessionId);
+        setArchivedSessionIds(new Set(nextState.sessions.filter((session) => session.archived).map((session) => session.id)));
       } catch (error) {
         console.error(error);
       }
@@ -163,7 +184,7 @@ export function ChatPage() {
     setSessions((current) => current.map((session) => (session.id === sessionId ? updater(session) : session)));
   }
 
-  function createSession() {
+  function createSession(nextView: ActiveView = "chat") {
     const draftSession = createDraftSession();
     setArchivedSessionIds((current) => {
       if (!current.has(DRAFT_SESSION_ID)) {
@@ -182,7 +203,7 @@ export function ChatPage() {
       [draftSession.id]: []
     }));
     setActiveSessionId(draftSession.id);
-    setActiveView("chat");
+    setActiveView(nextView);
     setDraft("");
     setPendingApproval(null);
   }
@@ -214,6 +235,12 @@ export function ChatPage() {
       next.add(sessionId);
       return next;
     });
+    updateSession(sessionId, (session) => ({ ...session, archived: true }));
+    if (!isDraftSessionId(sessionId)) {
+      void updateConversationArchiveState(sessionId, true)
+        .then((session) => updateSession(sessionId, () => session))
+        .catch((error) => console.error(error));
+    }
 
     if (sessionId !== activeSessionId) {
       return;
@@ -226,6 +253,38 @@ export function ChatPage() {
     }
 
     createSession();
+  }
+
+  function restoreArchivedSession(sessionId: string) {
+    setArchivedSessionIds((current) => {
+      const next = new Set(current);
+      next.delete(sessionId);
+      return next;
+    });
+    updateSession(sessionId, (session) => ({ ...session, archived: false }));
+    if (!isDraftSessionId(sessionId)) {
+      void updateConversationArchiveState(sessionId, false)
+        .then((session) => updateSession(sessionId, () => session))
+        .catch((error) => console.error(error));
+    }
+  }
+
+  async function deleteArchivedSession(sessionId: string) {
+    if (!isDraftSessionId(sessionId)) {
+      await deleteConversation(sessionId);
+    }
+
+    setArchivedSessionIds((current) => {
+      const next = new Set(current);
+      next.delete(sessionId);
+      return next;
+    });
+    setSessions((current) => current.filter((session) => session.id !== sessionId));
+    setMessages((current) => {
+      const next = { ...current };
+      delete next[sessionId];
+      return next;
+    });
   }
 
   function flushQueuedMessageDeltas() {
@@ -519,38 +578,50 @@ export function ChatPage() {
 
   return (
     <>
-      <Sidebar
-        activeSessionId={activeSession.id}
-        activeView={activeView}
-        onArchiveSession={archiveSession}
-        onCreateSession={createSession}
-        onOpenOverview={() => setActiveView("overview")}
-        onSearchTextChange={setSearchText}
-        onSelectSession={selectSession}
-        searchText={searchText}
-        sessions={filteredSessions}
-      />
-
-      {activeView === "overview" ? (
-        <OverviewPage />
+      {activeView === "settings" ? (
+        <SettingsPage
+          archivedSessions={archivedSessions}
+          onBack={() => setActiveView("chat")}
+          onDeleteArchivedSession={deleteArchivedSession}
+          onRestoreArchivedSession={restoreArchivedSession}
+        />
       ) : (
-        <main className="main-panel">
-          <ConversationHeader isRunning={Boolean(activeTurnId)} title={activeSession.title} />
-          <MessageList
-            messages={activeMessages}
-            session={activeSession}
-            statusLabel={formatSessionStatus(activeSession.status)}
+        <>
+          <Sidebar
+            activeSessionId={activeSession.id}
+            activeView={activeView}
+            onArchiveSession={archiveSession}
+            onCreateSession={() => createSession()}
+            onOpenOverview={() => setActiveView("overview")}
+            onOpenSettings={() => setActiveView("settings")}
+            onSearchTextChange={setSearchText}
+            onSelectSession={selectSession}
+            searchText={searchText}
+            sessions={filteredSessions}
           />
-          <ChatComposer
-            activeTurnId={activeTurnId}
-            draft={draft}
-            onDraftChange={setDraft}
-            onResolveApproval={(decision) => void resolveApproval(decision)}
-            onSendMessage={() => void sendMessage()}
-            onStopTurn={() => void stopCurrentTurn()}
-            pendingApproval={pendingApproval}
-          />
-        </main>
+
+          {activeView === "overview" ? (
+            <OverviewPage />
+          ) : (
+            <main className="main-panel">
+              <ConversationHeader isRunning={Boolean(activeTurnId)} title={activeSession.title} />
+              <MessageList
+                messages={activeMessages}
+                session={activeSession}
+                statusLabel={formatSessionStatus(activeSession.status)}
+              />
+              <ChatComposer
+                activeTurnId={activeTurnId}
+                draft={draft}
+                onDraftChange={setDraft}
+                onResolveApproval={(decision) => void resolveApproval(decision)}
+                onSendMessage={() => void sendMessage()}
+                onStopTurn={() => void stopCurrentTurn()}
+                pendingApproval={pendingApproval}
+              />
+            </main>
+          )}
+        </>
       )}
     </>
   );

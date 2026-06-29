@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import time
 import uuid
 from datetime import datetime
@@ -85,6 +86,23 @@ class ConversationStore:
             "session": session,
             "messages": self.load_messages(conversation_id),
         }
+
+    def delete_conversation(self, conversation_id: str) -> bool:
+        directory = self._conversation_dir(conversation_id)
+        if not directory.exists():
+            return False
+        shutil.rmtree(directory)
+        return True
+
+    def update_archive_state(self, conversation_id: str, *, archived: bool) -> dict[str, Any] | None:
+        session = self._read_session(conversation_id)
+        if session is None:
+            return None
+        return self.save_session(conversation_id, {
+            **session,
+            "archived": archived,
+            "updatedAt": session.get("updatedAt"),
+        })
 
     def save_session(self, conversation_id: str, session: dict[str, Any]) -> dict[str, Any]:
         directory = self._conversation_dir(conversation_id)

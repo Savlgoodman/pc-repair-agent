@@ -11,6 +11,7 @@ interface SidebarProps {
   onCreateSession: () => void;
   onArchiveSession: (sessionId: string) => void;
   onOpenOverview: () => void;
+  onOpenSettings: () => void;
   onSearchTextChange: (value: string) => void;
   onSelectSession: (sessionId: string) => void;
   searchText: string;
@@ -23,6 +24,7 @@ export function Sidebar({
   onArchiveSession,
   onCreateSession,
   onOpenOverview,
+  onOpenSettings,
   onSearchTextChange,
   onSelectSession,
   searchText,
@@ -127,7 +129,7 @@ export function Sidebar({
       </div>
 
       <div className="sidebar-footer">
-        <button className="nav-command">
+        <button className="nav-command" onClick={onOpenSettings} type="button">
           <Settings size={16} />
           <span>设置</span>
         </button>

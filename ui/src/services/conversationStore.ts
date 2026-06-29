@@ -39,3 +39,20 @@ export async function loadConversation(sessionId: string): Promise<{
   const response = await requestJson<LoadConversationResponse>(`/api/conversations/${sessionId}`);
   return response;
 }
+
+export async function deleteConversation(sessionId: string): Promise<void> {
+  await requestJson<{ deleted: boolean }>(`/api/conversations/${sessionId}`, {
+    method: "DELETE"
+  });
+}
+
+export async function updateConversationArchiveState(
+  sessionId: string,
+  archived: boolean,
+): Promise<Session> {
+  const response = await requestJson<{ session: Session }>(`/api/conversations/${sessionId}/archive`, {
+    body: JSON.stringify({ archived }),
+    method: "PATCH"
+  });
+  return response.session;
+}
