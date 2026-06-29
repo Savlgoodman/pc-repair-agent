@@ -25,13 +25,15 @@ import {
   Wrench,
   X
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 
 import { MessageRenderer } from "./components/MessageRenderer";
 import { cancelTurn, sendApprovalDecision, streamAgentTurn } from "./services/agentClient";
 import type { AgentEvent, ApprovalRequest, ChatMessage, Session, ToolCallItem } from "./types";
 
 const STORAGE_KEY = "pc-agent-ui-state-v2";
+const STORAGE_WRITE_DELAY_MS = 800;
+const STREAM_DELTA_FLUSH_MS = 60;
 
 interface StoredState {
   sessions: Session[];
@@ -43,6 +45,18 @@ interface AssistantInlineEntry {
   content: string;
   key: string;
   tools: ToolCallItem[];
+}
+
+interface PendingMessageDelta {
+  messageId: string;
+  reasoning: string;
+  sessionId: string;
+  text: string;
+}
+
+interface TextRange {
+  end: number;
+  start: number;
 }
 
 function createId(prefix: string) {
@@ -255,14 +269,93 @@ function upsertToolCall(
   );
 }
 
+function getLineRanges(content: string) {
+  const lines: Array<TextRange & { text: string }> = [];
+  let start = 0;
+
+  while (start < content.length) {
+    const nextLineBreak = content.indexOf("\n", start);
+    const end = nextLineBreak >= 0 ? nextLineBreak + 1 : content.length;
+    lines.push({
+      end,
+      start,
+      text: content.slice(start, end)
+    });
+    start = end;
+  }
+
+  return lines;
+}
+
+function isMarkdownTableDivider(line: string) {
+  const trimmed = line.trim();
+  if (!trimmed.includes("|")) {
+    return false;
+  }
+
+  const cells = trimmed
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+
+  return cells.length >= 2 && cells.every((cell) => /^:?-{3,}:?$/.test(cell));
+}
+
+function isMarkdownTableRow(line: string) {
+  const trimmed = line.trim();
+  return Boolean(trimmed) && trimmed.includes("|") && !trimmed.startsWith("```");
+}
+
+function findMarkdownTableRanges(content: string): TextRange[] {
+  const lines = getLineRanges(content);
+  const ranges: TextRange[] = [];
+
+  for (let index = 1; index < lines.length; index += 1) {
+    if (!isMarkdownTableDivider(lines[index].text) || !isMarkdownTableRow(lines[index - 1].text)) {
+      continue;
+    }
+
+    let startIndex = index - 1;
+    let endIndex = index + 1;
+
+    while (startIndex > 0 && isMarkdownTableRow(lines[startIndex - 1].text)) {
+      startIndex -= 1;
+    }
+
+    while (endIndex < lines.length && isMarkdownTableRow(lines[endIndex].text)) {
+      endIndex += 1;
+    }
+
+    ranges.push({
+      end: lines[endIndex - 1].end,
+      start: lines[startIndex].start
+    });
+  }
+
+  return ranges;
+}
+
+function moveOffsetAfterMarkdownTable(offset: number, tableRanges: TextRange[]) {
+  for (const range of tableRanges) {
+    if (offset > range.start && offset < range.end) {
+      return range.end;
+    }
+  }
+
+  return offset;
+}
+
 function buildAssistantInlineEntries(content: string, toolCalls: ToolCallItem[]) {
   const entries: AssistantInlineEntry[] = [];
   const contentLength = content.length;
+  const tableRanges = findMarkdownTableRanges(content);
   const toolsByOffset = new Map<number, ToolCallItem[]>();
 
   for (const tool of toolCalls) {
     const rawOffset = typeof tool.anchorOffset === "number" ? tool.anchorOffset : contentLength;
-    const offset = Math.max(0, Math.min(rawOffset, contentLength));
+    const boundedOffset = Math.max(0, Math.min(rawOffset, contentLength));
+    const offset = moveOffsetAfterMarkdownTable(boundedOffset, tableRanges);
     toolsByOffset.set(offset, [...(toolsByOffset.get(offset) ?? []), tool]);
   }
 
@@ -356,6 +449,32 @@ function AssistantMessageContent({ message }: { message: ChatMessage }) {
   );
 }
 
+const MessageItem = memo(function MessageItem({ message }: { message: ChatMessage }) {
+  return (
+    <article className={`message ${message.role}`}>
+      <div className="message-avatar" aria-hidden="true">
+        {message.role === "assistant" ? <Bot size={16} /> : <UserRound size={16} />}
+      </div>
+      <div className="message-body">
+        {message.role === "assistant" ? (
+          <AssistantMessageContent message={message} />
+        ) : (
+          <p className="user-message-text">{message.content}</p>
+        )}
+
+        {message.reasoning ? (
+          <details className="reasoning-block">
+            <summary>思考过程</summary>
+            <p>{message.reasoning}</p>
+          </details>
+        ) : null}
+
+        {message.error ? <p className="message-error">{message.error}</p> : null}
+      </div>
+    </article>
+  );
+});
+
 function App() {
   const initialState = useMemo(loadInitialState, []);
   const [sessions, setSessions] = useState(initialState.sessions);
@@ -366,17 +485,21 @@ function App() {
   const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
   const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const latestStoredStateRef = useRef<StoredState>(initialState);
+  const pendingMessageDeltasRef = useRef<Record<string, PendingMessageDelta>>({});
+  const persistTimerRef = useRef<number | null>(null);
+  const streamFlushTimerRef = useRef<number | null>(null);
 
   const activeSession = sessions.find((item) => item.id === activeSessionId) ?? sessions[0];
   const activeMessages = messages[activeSession.id] ?? [];
 
-  const filteredSessions = sessions.filter((item) => {
+  const filteredSessions = useMemo(() => sessions.filter((item) => {
     const query = searchText.trim().toLowerCase();
     if (!query) {
       return true;
     }
     return `${item.title} ${item.preview}`.toLowerCase().includes(query);
-  });
+  }), [searchText, sessions]);
 
   useEffect(() => {
     const state: StoredState = {
@@ -384,12 +507,41 @@ function App() {
       messages,
       activeSessionId
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    latestStoredStateRef.current = state;
+
+    if (persistTimerRef.current !== null) {
+      window.clearTimeout(persistTimerRef.current);
+    }
+
+    persistTimerRef.current = window.setTimeout(() => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(latestStoredStateRef.current));
+      persistTimerRef.current = null;
+    }, STORAGE_WRITE_DELAY_MS);
+
+    return () => {
+      if (persistTimerRef.current !== null) {
+        window.clearTimeout(persistTimerRef.current);
+        persistTimerRef.current = null;
+      }
+    };
   }, [activeSessionId, messages, sessions]);
 
   useEffect(() => {
+    const persistNow = () => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(latestStoredStateRef.current));
+    };
+
+    window.addEventListener("beforeunload", persistNow);
+    window.addEventListener("pagehide", persistNow);
+
     return () => {
+      window.removeEventListener("beforeunload", persistNow);
+      window.removeEventListener("pagehide", persistNow);
       abortControllerRef.current?.abort();
+      if (streamFlushTimerRef.current !== null) {
+        window.clearTimeout(streamFlushTimerRef.current);
+      }
+      persistNow();
     };
   }, []);
 
@@ -409,28 +561,83 @@ function App() {
     setPendingApproval(null);
   }
 
+  function flushQueuedMessageDeltas() {
+    if (streamFlushTimerRef.current !== null) {
+      window.clearTimeout(streamFlushTimerRef.current);
+      streamFlushTimerRef.current = null;
+    }
+
+    const pendingDeltas = Object.values(pendingMessageDeltasRef.current);
+    if (pendingDeltas.length === 0) {
+      return;
+    }
+
+    pendingMessageDeltasRef.current = {};
+    setMessages((current) => {
+      let next = current;
+      for (const delta of pendingDeltas) {
+        if (!delta.text && !delta.reasoning) {
+          continue;
+        }
+
+        next = updateMessage(next, delta.sessionId, delta.messageId, (message) => ({
+          ...message,
+          content: delta.text ? message.content + delta.text : message.content,
+          reasoning: delta.reasoning ? `${message.reasoning ?? ""}${delta.reasoning}` : message.reasoning
+        }));
+      }
+      return next;
+    });
+  }
+
+  function scheduleMessageDeltaFlush() {
+    if (streamFlushTimerRef.current !== null) {
+      return;
+    }
+
+    streamFlushTimerRef.current = window.setTimeout(flushQueuedMessageDeltas, STREAM_DELTA_FLUSH_MS);
+  }
+
+  function queueMessageDelta(
+    sessionId: string,
+    assistantMessageId: string,
+    delta: string,
+    kind: "text" | "reasoning",
+  ) {
+    const key = `${sessionId}:${assistantMessageId}`;
+    const current = pendingMessageDeltasRef.current[key] ?? {
+      messageId: assistantMessageId,
+      reasoning: "",
+      sessionId,
+      text: ""
+    };
+
+    pendingMessageDeltasRef.current[key] = {
+      ...current,
+      reasoning: kind === "reasoning" ? current.reasoning + delta : current.reasoning,
+      text: kind === "text" ? current.text + delta : current.text
+    };
+    scheduleMessageDeltaFlush();
+  }
+
   function handleAgentEvent(sessionId: string, assistantMessageId: string, event: AgentEvent) {
     if (event.type === "agent.text.delta") {
-      setMessages((current) =>
-        updateMessage(current, sessionId, assistantMessageId, (message) => ({
-          ...message,
-          content: message.content + event.delta
-        }))
-      );
+      queueMessageDelta(sessionId, assistantMessageId, event.delta, "text");
       return;
     }
 
     if (event.type === "agent.reasoning.delta") {
-      setMessages((current) =>
-        updateMessage(current, sessionId, assistantMessageId, (message) => ({
-          ...message,
-          reasoning: `${message.reasoning ?? ""}${event.delta}`
-        }))
-      );
+      queueMessageDelta(sessionId, assistantMessageId, event.delta, "reasoning");
+      return;
+    }
+
+    if (event.type === "agent.text.completed" || event.type === "agent.reasoning.completed") {
+      flushQueuedMessageDeltas();
       return;
     }
 
     if (event.type === "agent.tool.started") {
+      flushQueuedMessageDeltas();
       setMessages((current) =>
         updateMessage(current, sessionId, assistantMessageId, (message) => ({
           ...message,
@@ -448,6 +655,7 @@ function App() {
     }
 
     if (event.type === "agent.tool.completed") {
+      flushQueuedMessageDeltas();
       setMessages((current) =>
         updateMessage(current, sessionId, assistantMessageId, (message) => ({
           ...message,
@@ -463,6 +671,7 @@ function App() {
     }
 
     if (event.type === "agent.tool.failed") {
+      flushQueuedMessageDeltas();
       setMessages((current) =>
         updateMessage(current, sessionId, assistantMessageId, (message) => ({
           ...message,
@@ -478,6 +687,7 @@ function App() {
     }
 
     if (event.type === "approval.required") {
+      flushQueuedMessageDeltas();
       setPendingApproval({
         approvalId: event.approvalId,
         argumentsText: formatJson(event.argumentsText ? event.argumentsText : event.arguments),
@@ -507,6 +717,7 @@ function App() {
     }
 
     if (event.type === "agent.run.completed") {
+      flushQueuedMessageDeltas();
       setMessages((current) =>
         updateMessage(current, sessionId, assistantMessageId, (message) => ({
           ...message,
@@ -519,6 +730,7 @@ function App() {
     }
 
     if (event.type === "agent.run.failed") {
+      flushQueuedMessageDeltas();
       setMessages((current) =>
         updateMessage(current, sessionId, assistantMessageId, (message) => ({
           ...message,
@@ -604,6 +816,7 @@ function App() {
 
     const turnId = activeTurnId;
     abortControllerRef.current?.abort();
+    flushQueuedMessageDeltas();
     await cancelTurn(turnId).catch(() => undefined);
     setActiveTurnId(null);
     setPendingApproval(null);
@@ -749,27 +962,7 @@ function App() {
               ) : null}
 
               {activeMessages.map((message) => (
-                <article key={message.id} className={`message ${message.role}`}>
-                  <div className="message-avatar" aria-hidden="true">
-                    {message.role === "assistant" ? <Bot size={16} /> : <UserRound size={16} />}
-                  </div>
-                  <div className="message-body">
-                    {message.role === "assistant" ? (
-                      <AssistantMessageContent message={message} />
-                    ) : (
-                      <p className="user-message-text">{message.content}</p>
-                    )}
-
-                    {message.reasoning ? (
-                      <details className="reasoning-block">
-                        <summary>思考过程</summary>
-                        <p>{message.reasoning}</p>
-                      </details>
-                    ) : null}
-
-                    {message.error ? <p className="message-error">{message.error}</p> : null}
-                  </div>
-                </article>
+                <MessageItem key={message.id} message={message} />
               ))}
 
               {pendingApproval ? (
