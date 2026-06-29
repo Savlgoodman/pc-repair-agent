@@ -6,9 +6,6 @@ import {
   CheckCircle2,
   ChevronDown,
   Circle,
-  Cpu,
-  FileCheck2,
-  HardDriveDownload,
   LayoutList,
   MessageSquarePlus,
   Minus,
@@ -51,7 +48,7 @@ interface StoredState {
 interface AssistantInlineEntry {
   content: string;
   key: string;
-  tools: ToolCallItem[];
+  toolGroups: ToolCallItem[][];
 }
 
 interface PendingMessageDelta {
@@ -212,6 +209,22 @@ function formatJson(value: unknown) {
   } catch {
     return String(value);
   }
+}
+
+function summarizeArguments(value: string) {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const entries = Object.entries(parsed as Record<string, unknown>).slice(0, 3);
+      const summary = entries.map(([key, item]) => `${key} = ${JSON.stringify(item)}`).join(", ");
+      return summary.length > 120 ? `${summary.slice(0, 120)}...` : summary || "{}";
+    }
+  } catch {
+    // Fall back to plain text summary below.
+  }
+
+  const compact = value.replace(/\s+/g, " ").trim();
+  return compact.length > 120 ? `${compact.slice(0, 120)}...` : compact || "{}";
 }
 
 function formatRisk(risk?: ToolCallItem["risk"]) {
@@ -382,14 +395,14 @@ function buildAssistantInlineEntries(content: string, toolCalls: ToolCallItem[])
       entries.push({
         content: text,
         key: `text-${cursor}-${offset}`,
-        tools: []
+        toolGroups: []
       });
     }
 
     entries.push({
       content: "",
       key: `tools-${offset}-${toolsByOffset.get(offset)?.map((tool) => tool.id).join("-")}`,
-      tools: toolsByOffset.get(offset) ?? []
+      toolGroups: [toolsByOffset.get(offset) ?? []]
     });
     cursor = offset;
   }
@@ -399,17 +412,28 @@ function buildAssistantInlineEntries(content: string, toolCalls: ToolCallItem[])
     entries.push({
       content: tail,
       key: `text-${cursor}-${contentLength}`,
-      tools: []
+      toolGroups: []
     });
   }
 
   return entries;
 }
 
+function toolResultSummary(tool: ToolCallItem) {
+  const value = tool.error ?? tool.resultText ?? "";
+  const compact = value.replace(/\s+/g, " ").trim();
+  if (!compact) {
+    return tool.status === "approval" ? "等待确认" : "运行中";
+  }
+  return compact.length > 120 ? `${compact.slice(0, 120)}...` : compact;
+}
+
 function ToolCallCard({ tool }: { tool: ToolCallItem }) {
+  const defaultOpen = tool.status !== "complete";
+
   return (
-    <div className={`tool-call-card ${tool.status}`}>
-      <div className="tool-call-head">
+    <details className={`tool-call-card ${tool.status}`} open={defaultOpen}>
+      <summary className="tool-call-head">
         <span className="tool-call-icon">
           {tool.status === "complete" ? (
             <CheckCircle2 size={14} />
@@ -421,9 +445,34 @@ function ToolCallCard({ tool }: { tool: ToolCallItem }) {
         </span>
         <strong>{tool.name}</strong>
         <span>{formatRisk(tool.risk)}</span>
+        {tool.status === "complete" ? <em>{toolResultSummary(tool)}</em> : null}
+      </summary>
+      <div className="tool-call-detail">
+        <span>入参</span>
+        <pre>{tool.argumentsText}</pre>
+        {tool.resultText || tool.error ? (
+          <>
+            <span>{tool.error ? "错误" : "输出"}</span>
+            <pre>{tool.error ?? tool.resultText}</pre>
+          </>
+        ) : null}
       </div>
-      <pre>{tool.resultText ?? tool.error ?? tool.argumentsText}</pre>
-    </div>
+    </details>
+  );
+}
+
+function ToolCallGroup({ tools }: { tools: ToolCallItem[] }) {
+  const defaultOpen = tools.some((tool) => tool.status !== "complete");
+
+  return (
+    <details className="tool-call-group" open={defaultOpen}>
+      <summary className="tool-call-group-head">已调用 {tools.length} 个工具</summary>
+      <div className="tool-call-list">
+        {tools.map((tool) => (
+          <ToolCallCard key={tool.id} tool={tool} />
+        ))}
+      </div>
+    </details>
   );
 }
 
@@ -450,10 +499,10 @@ function AssistantMessageContent({ message }: { message: ChatMessage }) {
             />
           ) : null}
 
-          {entry.tools.length > 0 ? (
+          {entry.toolGroups.length > 0 ? (
             <div className="tool-call-list inline-tool-call-list">
-              {entry.tools.map((tool) => (
-                <ToolCallCard key={tool.id} tool={tool} />
+              {entry.toolGroups.map((tools) => (
+                <ToolCallGroup key={tools.map((tool) => tool.id).join("-")} tools={tools} />
               ))}
             </div>
           ) : null}
@@ -1073,57 +1122,50 @@ function App() {
                 <MessageItem key={message.id} message={message} />
               ))}
 
-              {pendingApproval ? (
-                <section className="approval-panel">
-                  <div>
-                    <span className="eyebrow">需要审批</span>
-                    <strong>{pendingApproval.name}</strong>
-                    <p>{pendingApproval.purpose}</p>
-                  </div>
-                  <dl>
-                    <dt>风险等级</dt>
-                    <dd>{formatRisk(pendingApproval.risk)}</dd>
-                    <dt>影响范围</dt>
-                    <dd>{pendingApproval.impact}</dd>
-                    <dt>回滚方式</dt>
-                    <dd>{pendingApproval.rollback}</dd>
-                  </dl>
-                  {pendingApproval.risks.length > 0 ? (
-                    <ul>
-                      {pendingApproval.risks.map((risk) => (
-                        <li key={risk}>{risk}</li>
-                      ))}
-                    </ul>
-                  ) : null}
-                  <pre>{pendingApproval.argumentsText}</pre>
-                  <div className="approval-actions">
-                    <button onClick={() => void resolveApproval("deny")}>拒绝</button>
-                    <button className="primary" onClick={() => void resolveApproval("allow")}>
-                      允许
-                    </button>
-                  </div>
-                </section>
-              ) : null}
-
-              <section className="skill-strip" aria-label="推荐技能">
-                <button>
-                  <Cpu size={15} />
-                  硬件扫描
-                </button>
-                <button>
-                  <HardDriveDownload size={15} />
-                  驱动下载
-                </button>
-                <button>
-                  <FileCheck2 size={15} />
-                  运行库补全
-                </button>
-              </section>
             </div>
           </section>
 
           <div className="composer-wrap">
-            <div className="composer">
+            <div className="composer-stack">
+              {pendingApproval ? (
+                <section className="approval-panel">
+                  <div className="approval-summary">
+                    <div>
+                      <span className="eyebrow">需要确认</span>
+                      <strong>{pendingApproval.name}</strong>
+                      <p>
+                        {formatRisk(pendingApproval.risk)}。{pendingApproval.purpose}
+                      </p>
+                      <span className="approval-args">参数：{summarizeArguments(pendingApproval.argumentsText)}</span>
+                    </div>
+                    <div className="approval-actions">
+                      <button onClick={() => void resolveApproval("deny")}>拒绝</button>
+                      <button className="primary" onClick={() => void resolveApproval("allow")}>
+                        允许
+                      </button>
+                    </div>
+                  </div>
+                  <details className="approval-detail">
+                    <summary>查看详情</summary>
+                    <dl>
+                      <dt>影响范围</dt>
+                      <dd>{pendingApproval.impact}</dd>
+                      <dt>回滚方式</dt>
+                      <dd>{pendingApproval.rollback}</dd>
+                    </dl>
+                    {pendingApproval.risks.length > 0 ? (
+                      <ul>
+                        {pendingApproval.risks.map((risk) => (
+                          <li key={risk}>{risk}</li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    <pre>{pendingApproval.argumentsText}</pre>
+                  </details>
+                </section>
+              ) : null}
+
+              <div className="composer">
               <textarea
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
@@ -1160,6 +1202,7 @@ function App() {
                     {activeTurnId ? <Square size={13} /> : <Send size={17} />}
                   </button>
                 </div>
+              </div>
               </div>
             </div>
           </div>

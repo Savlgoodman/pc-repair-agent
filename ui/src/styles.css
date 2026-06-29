@@ -79,8 +79,7 @@ button {
 .composer-actions,
 .composer-left,
 .composer-right,
-.workflow-title,
-.skill-strip {
+.workflow-title {
   display: flex;
   align-items: center;
 }
@@ -107,8 +106,7 @@ button {
 .outline-action,
 .text-action,
 .model-chip,
-.send-button,
-.skill-strip button {
+.send-button {
   border: 0;
   background: transparent;
   color: inherit;
@@ -612,6 +610,28 @@ button {
   margin-top: 10px;
 }
 
+.tool-call-group {
+  border: 1px solid #e5e1dc;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.tool-call-group-head {
+  cursor: pointer;
+  padding: 9px 10px;
+  color: #505861;
+  font-size: 13px;
+}
+
+.tool-call-group[open] .tool-call-group-head {
+  border-bottom: 1px solid #ebe7e2;
+}
+
+.tool-call-group > .tool-call-list {
+  margin: 0;
+  padding: 8px;
+}
+
 .tool-call-card {
   border: 1px solid #ebe7e2;
   border-radius: 8px;
@@ -632,6 +652,7 @@ button {
   display: flex;
   align-items: center;
   gap: 8px;
+  cursor: pointer;
   color: #59616b;
   font-size: 12px;
 }
@@ -640,6 +661,27 @@ button {
   color: #272c34;
   font-size: 13px;
   font-weight: 600;
+}
+
+.tool-call-head em {
+  min-width: 0;
+  overflow: hidden;
+  color: #7b8188;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-call-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.tool-call-detail span {
+  color: #7a8087;
+  font-size: 12px;
 }
 
 .tool-call-icon {
@@ -684,12 +726,12 @@ button {
 }
 
 .approval-panel {
-  margin: 20px 0;
   border: 1px solid #efc8a9;
   border-radius: 8px;
   background: #fff8f3;
-  padding: 14px;
+  padding: 12px;
   box-shadow: 0 12px 34px rgba(110, 58, 18, 0.08);
+  pointer-events: auto;
 }
 
 .approval-panel strong {
@@ -703,6 +745,32 @@ button {
   margin: 8px 0 0;
   color: #5f6670;
   line-height: 1.7;
+}
+
+.approval-summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.approval-args {
+  display: block;
+  margin-top: 8px;
+  color: #7a604d;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.approval-detail {
+  margin-top: 8px;
+}
+
+.approval-detail summary {
+  cursor: pointer;
+  color: #7a604d;
+  font-size: 12px;
 }
 
 .approval-panel dl {
@@ -731,9 +799,9 @@ button {
 
 .approval-actions {
   display: flex;
+  flex: 0 0 auto;
   justify-content: flex-end;
   gap: 8px;
-  margin-top: 12px;
 }
 
 .approval-actions button {
@@ -765,28 +833,6 @@ button {
   }
 }
 
-.skill-strip {
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 22px;
-}
-
-.skill-strip button {
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 0 10px;
-  border: 1px solid #e4e0dc;
-  border-radius: 8px;
-  background: #fff;
-  color: #3d434b;
-}
-
-.skill-strip button:hover {
-  background: #f5f5f3;
-}
-
 .composer-wrap {
   position: absolute;
   right: 0;
@@ -798,8 +844,15 @@ button {
   pointer-events: none;
 }
 
-.composer {
+.composer-stack {
   width: min(760px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.composer {
   min-height: 98px;
   display: flex;
   flex-direction: column;
