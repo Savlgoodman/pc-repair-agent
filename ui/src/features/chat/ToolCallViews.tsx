@@ -1,4 +1,5 @@
 import { AlertTriangle, CheckCircle2, Circle } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import { formatRisk } from "../../lib/formatters";
 import type { ToolCallItem } from "../../types";
@@ -46,11 +47,30 @@ export function ToolCallCard({ tool }: { tool: ToolCallItem }) {
 }
 
 export function ToolCallGroup({ tools }: { tools: ToolCallItem[] }) {
-  const defaultOpen = tools.some((tool) => tool.status !== "complete");
+  const hasIncompleteTools = tools.some((tool) => tool.status !== "complete");
+  const [open, setOpen] = useState(hasIncompleteTools);
+  const isAutoControlledRef = useRef(true);
+
+  useEffect(() => {
+    if (!isAutoControlledRef.current) {
+      return;
+    }
+    setOpen(hasIncompleteTools);
+  }, [hasIncompleteTools]);
 
   return (
-    <details className="tool-call-group" open={defaultOpen}>
-      <summary className="tool-call-group-head">已调用 {tools.length} 个工具</summary>
+    <details
+      className="tool-call-group"
+      open={open}
+      onToggle={(event) => {
+        setOpen(event.currentTarget.open);
+      }}
+    >
+      <summary className="tool-call-group-head" onClick={() => {
+        isAutoControlledRef.current = false;
+      }}>
+        已调用 {tools.length} 个工具
+      </summary>
       <div className="tool-call-list">
         {tools.map((tool) => (
           <ToolCallCard key={tool.id} tool={tool} />

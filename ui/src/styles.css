@@ -705,6 +705,28 @@ button {
   line-height: 1.6;
 }
 
+.scroll-bottom-button {
+  position: absolute;
+  bottom: 154px;
+  left: 50%;
+  z-index: 5;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  transform: translateX(-50%);
+  border: 1px solid #dedbd7;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.52);
+  color: #343a42;
+  box-shadow: 0 10px 28px rgba(30, 35, 42, 0.12);
+  backdrop-filter: blur(10px);
+}
+
+.scroll-bottom-button:hover {
+  background: rgba(255, 255, 255, 0.82);
+}
+
 .empty-state {
   display: grid;
   justify-items: center;
