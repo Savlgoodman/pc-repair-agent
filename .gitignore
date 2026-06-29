@@ -1,0 +1,91 @@
+# 操作系统与编辑器文件
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 环境变量与密钥
+.env
+.env.*
+!.env.example
+demo/nanobot_config.local.json
+*.pem
+*.key
+*.p12
+*.pfx
+
+# 日志与本地临时数据
+logs/
+*.log
+*.pid
+*.tmp
+tmp/
+temp/
+.cache/
+cache/
+
+# Node / 前端
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+dist/
+dist-ssr/
+build/
+.turbo/
+.vite/
+coverage/
+
+# Tauri / Rust
+src-tauri/target/
+target/
+**/*.rs.bk
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyre/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+ENV/
+pip-wheel-metadata/
+*.egg-info/
+.eggs/
+
+# Python 打包产物
+backend/build/
+backend/dist/
+backend/.nuitka-cache/
+backend/*.spec
+
+# 应用打包产物
+release/
+releases/
+artifacts/
+installers/
+
+# 产品运行时数据
+data/
+downloads/
+driver-cache/
+runtime-cache/
+audit-logs/
+sessions/
+
+# 本地模型与大体积二进制缓存
+models/
+*.onnx
+*.gguf
+*.bin
