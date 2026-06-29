@@ -1,4 +1,4 @@
-import { ArrowDown, Bot, UserRound } from "lucide-react";
+import { ArrowDown, Bot } from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
 
 import { MessageRenderer } from "../../components/MessageRenderer";
@@ -45,9 +45,6 @@ function AssistantMessageContent({ message }: { message: ChatMessage }) {
 const MessageItem = memo(function MessageItem({ message }: { message: ChatMessage }) {
   return (
     <article className={`message ${message.role}`}>
-      <div className="message-avatar" aria-hidden="true">
-        {message.role === "assistant" ? <Bot size={16} /> : <UserRound size={16} />}
-      </div>
       <div className="message-body">
         {message.role === "assistant" ? (
           <AssistantMessageContent message={message} />
