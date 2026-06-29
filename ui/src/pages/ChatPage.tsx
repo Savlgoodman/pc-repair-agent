@@ -14,6 +14,7 @@ import {
 } from "../lib/chatState";
 import { formatJson, formatSessionStatus } from "../lib/formatters";
 import { Sidebar } from "../layout/Sidebar";
+import { OverviewPage } from "./OverviewPage";
 import { cancelTurn, sendApprovalDecision, streamAgentTurn } from "../services/agentClient";
 import {
   listConversations,
@@ -80,6 +81,7 @@ export function ChatPage() {
   const [sessions, setSessions] = useState(initialState.sessions);
   const [messages, setMessages] = useState(initialState.messages);
   const [activeSessionId, setActiveSessionId] = useState(initialState.activeSessionId);
+  const [activeView, setActiveView] = useState<"chat" | "overview">("chat");
   const [archivedSessionIds, setArchivedSessionIds] = useState<Set<string>>(() => new Set());
   const [searchText, setSearchText] = useState("");
   const [draft, setDraft] = useState("");
@@ -180,12 +182,14 @@ export function ChatPage() {
       [draftSession.id]: []
     }));
     setActiveSessionId(draftSession.id);
+    setActiveView("chat");
     setDraft("");
     setPendingApproval(null);
   }
 
   function selectSession(sessionId: string) {
     setActiveSessionId(sessionId);
+    setActiveView("chat");
     setPendingApproval(null);
     if (isDraftSessionId(sessionId)) {
       return;
@@ -517,31 +521,37 @@ export function ChatPage() {
     <>
       <Sidebar
         activeSessionId={activeSession.id}
+        activeView={activeView}
         onArchiveSession={archiveSession}
         onCreateSession={createSession}
+        onOpenOverview={() => setActiveView("overview")}
         onSearchTextChange={setSearchText}
         onSelectSession={selectSession}
         searchText={searchText}
         sessions={filteredSessions}
       />
 
-      <main className="main-panel">
-        <ConversationHeader isRunning={Boolean(activeTurnId)} title={activeSession.title} />
-        <MessageList
-          messages={activeMessages}
-          session={activeSession}
-          statusLabel={formatSessionStatus(activeSession.status)}
-        />
-        <ChatComposer
-          activeTurnId={activeTurnId}
-          draft={draft}
-          onDraftChange={setDraft}
-          onResolveApproval={(decision) => void resolveApproval(decision)}
-          onSendMessage={() => void sendMessage()}
-          onStopTurn={() => void stopCurrentTurn()}
-          pendingApproval={pendingApproval}
-        />
-      </main>
+      {activeView === "overview" ? (
+        <OverviewPage />
+      ) : (
+        <main className="main-panel">
+          <ConversationHeader isRunning={Boolean(activeTurnId)} title={activeSession.title} />
+          <MessageList
+            messages={activeMessages}
+            session={activeSession}
+            statusLabel={formatSessionStatus(activeSession.status)}
+          />
+          <ChatComposer
+            activeTurnId={activeTurnId}
+            draft={draft}
+            onDraftChange={setDraft}
+            onResolveApproval={(decision) => void resolveApproval(decision)}
+            onSendMessage={() => void sendMessage()}
+            onStopTurn={() => void stopCurrentTurn()}
+            pendingApproval={pendingApproval}
+          />
+        </main>
+      )}
     </>
   );
 }

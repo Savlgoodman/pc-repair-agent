@@ -52,6 +52,24 @@ export interface UsageStats {
   totalTokens?: number;
 }
 
+export interface SystemProfileItem {
+  label: string;
+  value: string;
+}
+
+export interface SystemUsageMetric {
+  detail?: string;
+  id: "cpu" | "gpu" | "memory";
+  label: string;
+  value: number | null;
+}
+
+export interface SystemOverview {
+  collectedAt: number;
+  profile: SystemProfileItem[];
+  usage: SystemUsageMetric[];
+}
+
 export type AgentEvent =
   | {
       type: "conversation.turn.started";

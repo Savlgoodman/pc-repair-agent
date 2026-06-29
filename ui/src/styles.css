@@ -192,6 +192,11 @@ button {
   background: rgba(30, 35, 42, 0.06);
 }
 
+.nav-command.active {
+  background: var(--active);
+  color: #1f2328;
+}
+
 .nav-command.primary {
   color: #1f2328;
 }
@@ -1047,6 +1052,211 @@ button {
   background: #333941;
 }
 
+.overview-panel {
+  background: var(--panel);
+}
+
+.overview-header {
+  height: 58px;
+  flex: 0 0 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 22px;
+  border-bottom: 1px solid #e7e4e0;
+  background: rgba(251, 251, 250, 0.94);
+}
+
+.overview-header h1 {
+  margin: 3px 0 0;
+  color: #20242b;
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.overview-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: overlay;
+  padding: 22px;
+  scrollbar-gutter: stable;
+  scrollbar-width: none;
+}
+
+.overview-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.overview-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.overview-scroll::-webkit-scrollbar-thumb {
+  border: 0;
+  border-radius: 999px;
+  background: rgba(75, 82, 92, 0);
+}
+
+.overview-scroll:hover::-webkit-scrollbar-thumb,
+.overview-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(75, 82, 92, 0.26);
+}
+
+.overview-section {
+  width: min(980px, 100%);
+  margin: 0 auto 26px;
+}
+
+.overview-section-title {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.overview-section-title strong {
+  color: #20242b;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.overview-gauge-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.overview-gauge,
+.overview-profile-item {
+  border: 1px solid #e4e0dc;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.overview-gauge {
+  min-height: 206px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+}
+
+.overview-gauge.muted {
+  color: #7a8087;
+}
+
+.overview-gauge-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #4d535b;
+}
+
+.overview-gauge-head span {
+  display: grid;
+  place-items: center;
+  color: #5d6570;
+}
+
+.overview-gauge-head strong {
+  color: #242930;
+  font-weight: 650;
+}
+
+.overview-meter {
+  width: 116px;
+  height: 116px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.overview-meter > div {
+  width: 84px;
+  height: 84px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.overview-meter strong {
+  color: #20242b;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.overview-meter span {
+  margin-top: 4px;
+  color: #7b8188;
+  font-size: 12px;
+}
+
+.overview-gauge p {
+  width: 100%;
+  min-height: 34px;
+  margin: 0;
+  color: #697079;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.overview-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.overview-profile-item {
+  min-height: 82px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+}
+
+.overview-profile-item span {
+  color: var(--subtle);
+  font-size: 12px;
+}
+
+.overview-profile-item strong {
+  color: #252a31;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.overview-error {
+  width: min(980px, 100%);
+  margin: 0 auto 16px;
+  border: 1px solid #f0c8bd;
+  border-radius: 8px;
+  background: #fff7f5;
+  padding: 10px 12px;
+  color: #b42318;
+  line-height: 1.5;
+}
+
+.spin-icon {
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (max-width: 980px) {
   .app-shell {
     min-width: 760px;
@@ -1059,6 +1269,10 @@ button {
 
   .titlebar {
     grid-template-columns: minmax(260px, 1fr) auto minmax(160px, 1fr);
+  }
+
+  .overview-profile-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .title-menu button {
@@ -1091,5 +1305,13 @@ button {
   .session-banner {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .overview-gauge-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .overview-profile-grid {
+    grid-template-columns: 1fr;
   }
 }

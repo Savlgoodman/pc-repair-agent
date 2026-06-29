@@ -1,14 +1,16 @@
 import { useState } from "react";
 
-import { Archive, MessageSquarePlus, Search, Settings, ShieldCheck, Wrench } from "lucide-react";
+import { Archive, LayoutDashboard, MessageSquarePlus, Search, Settings, Wrench } from "lucide-react";
 
 import { formatTimeLabel } from "../lib/formatters";
 import type { Session } from "../types";
 
 interface SidebarProps {
   activeSessionId: string;
+  activeView: "chat" | "overview";
   onCreateSession: () => void;
   onArchiveSession: (sessionId: string) => void;
+  onOpenOverview: () => void;
   onSearchTextChange: (value: string) => void;
   onSelectSession: (sessionId: string) => void;
   searchText: string;
@@ -17,8 +19,10 @@ interface SidebarProps {
 
 export function Sidebar({
   activeSessionId,
+  activeView,
   onArchiveSession,
   onCreateSession,
+  onOpenOverview,
   onSearchTextChange,
   onSelectSession,
   searchText,
@@ -39,6 +43,14 @@ export function Sidebar({
   return (
     <aside className="sidebar">
       <div className="sidebar-actions">
+        <button
+          className={`nav-command ${activeView === "overview" ? "active" : ""}`}
+          onClick={onOpenOverview}
+          type="button"
+        >
+          <LayoutDashboard size={16} />
+          <span>总览</span>
+        </button>
         <button className="nav-command primary" onClick={onCreateSession}>
           <MessageSquarePlus size={16} />
           <span>新对话</span>
@@ -54,10 +66,6 @@ export function Sidebar({
         <button className="nav-command">
           <Wrench size={16} />
           <span>技能</span>
-        </button>
-        <button className="nav-command">
-          <ShieldCheck size={16} />
-          <span>审批</span>
         </button>
       </div>
 
