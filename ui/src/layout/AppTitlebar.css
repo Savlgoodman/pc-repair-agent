@@ -1,0 +1,112 @@
+﻿.titlebar {
+  height: 34px;
+  flex: 0 0 34px;
+  display: grid;
+  grid-template-columns: minmax(360px, 1fr) auto minmax(210px, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  background: #f5f4f2;
+  border-bottom: 1px solid var(--line);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.titlebar-left,
+.window-controls,
+.title-menu,
+.header-actions,
+.conversation-title,
+.composer-actions,
+.composer-left,
+.composer-right,
+.workflow-title {
+  display: flex;
+  align-items: center;
+}
+
+.titlebar-left {
+  gap: 4px;
+  min-width: 0;
+}
+
+.titlebar-center {
+  color: #767b82;
+  font-size: 12px;
+}
+
+.title-menu {
+  gap: 2px;
+  margin-left: 6px;
+}
+
+.title-menu button,
+.window-controls button,
+.icon-button,
+.nav-command,
+.outline-action,
+.text-action,
+.model-chip,
+.send-button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.title-menu button {
+  height: 26px;
+  padding: 0 10px;
+  color: #6e7278;
+  border-radius: 6px;
+}
+
+.title-menu button:hover,
+.icon-button:hover,
+.window-controls button:hover {
+  background: rgba(32, 36, 40, 0.07);
+}
+
+.window-controls {
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+.window-controls button {
+  width: 34px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: #343840;
+}
+
+.icon-button {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: #4d535b;
+}
+
+.icon-button.muted {
+  color: #9aa0a7;
+}
+
+@media (max-width: 980px) {
+  .titlebar {
+    grid-template-columns: minmax(260px, 1fr) auto minmax(160px, 1fr);
+  }
+
+  .title-menu button {
+    padding: 0 7px;
+  }
+}
+
+@media (max-width: 780px) {
+  .title-menu,
+  .titlebar-center {
+    display: none;
+  }
+}
+

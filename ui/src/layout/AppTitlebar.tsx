@@ -1,5 +1,7 @@
 import { ArrowLeft, ArrowRight, Minus, PanelLeft, Square, X } from "lucide-react";
 
+import "./AppTitlebar.css";
+
 async function handleWindowAction(action: "minimize" | "maximize" | "close") {
   const hasTauri = "__TAURI_INTERNALS__" in window;
   if (!hasTauri) {

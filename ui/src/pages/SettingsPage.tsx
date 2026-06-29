@@ -17,6 +17,7 @@ import type { LucideIcon } from "lucide-react";
 import { formatTimeLabel } from "../lib/formatters";
 import { fetchProviderModels, loadAppAbout } from "../services/settingsStore";
 import type { AppAboutInfo, Session } from "../types";
+import "./SettingsPage.css";
 
 type SettingsSection = "providers" | "archive" | "about";
 

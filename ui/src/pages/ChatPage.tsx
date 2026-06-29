@@ -24,6 +24,7 @@ import {
   updateConversationArchiveState
 } from "../services/conversationStore";
 import type { AgentEvent, ApprovalRequest, ChatMessage, Session, ToolCallItem } from "../types";
+import "./ChatPage.css";
 
 const DRAFT_SESSION_ID = "__draft_session__";
 const STREAM_DELTA_FLUSH_MS = 60;

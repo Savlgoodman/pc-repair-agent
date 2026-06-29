@@ -4,6 +4,7 @@ import { Archive, LayoutDashboard, MessageSquarePlus, Search, Settings, Wrench }
 
 import { formatTimeLabel } from "../lib/formatters";
 import type { Session } from "../types";
+import "./Sidebar.css";
 
 interface SidebarProps {
   activeSessionId: string;

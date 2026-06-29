@@ -4,6 +4,7 @@ import { Cpu, Gauge, MemoryStick, RefreshCw } from "lucide-react";
 
 import { loadSystemOverview } from "../services/systemOverview";
 import type { SystemOverview, SystemUsageMetric } from "../types";
+import "./OverviewPage.css";
 
 const emptyOverview: SystemOverview = {
   collectedAt: 0,
