@@ -227,17 +227,17 @@ button {
 .session-list {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow: overlay;
   display: flex;
   flex-direction: column;
   gap: 3px;
   padding: 4px 0;
-  scrollbar-width: thin;
-  scrollbar-color: #e5e2dd transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: none;
 }
 
 .session-list::-webkit-scrollbar {
-  width: 10px;
+  width: 4px;
 }
 
 .session-list::-webkit-scrollbar-track {
@@ -245,15 +245,14 @@ button {
 }
 
 .session-list::-webkit-scrollbar-thumb {
-  border: 3px solid transparent;
+  border: 0;
   border-radius: 999px;
-  background: #e5e2dd;
-  background-clip: padding-box;
+  background: rgba(75, 82, 92, 0);
 }
 
+.session-list:hover::-webkit-scrollbar-thumb,
 .session-list::-webkit-scrollbar-thumb:hover {
-  background: #d8d4ce;
-  background-clip: padding-box;
+  background: rgba(75, 82, 92, 0.26);
 }
 
 .session-item {
@@ -392,8 +391,29 @@ button {
 .chat-scroll {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow: overlay;
   padding: 28px 24px 172px;
+  scrollbar-gutter: stable;
+  scrollbar-width: none;
+}
+
+.chat-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.chat-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-scroll::-webkit-scrollbar-thumb {
+  border: 0;
+  border-radius: 999px;
+  background: rgba(75, 82, 92, 0);
+}
+
+.chat-scroll:hover::-webkit-scrollbar-thumb,
+.chat-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(75, 82, 92, 0.26);
 }
 
 .chat-content {
