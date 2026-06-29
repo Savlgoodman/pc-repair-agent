@@ -44,20 +44,32 @@ docs/
 
 ```text
 ui/
+  AGENTS.md
   src/
-    app/
+    App.tsx
+    pages/
+      ChatPage.tsx
+    layout/
+      AppTitlebar.tsx
+      Sidebar.tsx
     components/
+      MessageRenderer.tsx
     features/
-      dashboard/
-      scan/
-      skills/
-      approvals/
-      audit/
-      settings/
-      agent-chat/
+      chat/
+        ApprovalCard.tsx
+        ChatComposer.tsx
+        ConversationHeader.tsx
+        MessageList.tsx
+        ToolCallViews.tsx
+        messageTools.ts
     lib/
-    styles/
-  public/
+      chatState.ts
+      formatters.ts
+    services/
+      agentClient.ts
+      conversationStore.ts
+    styles.css
+    types.ts
   package.json
   tsconfig.json
   vite.config.ts
@@ -65,12 +77,14 @@ ui/
 
 职责：
 
-1. 主工作台。
-2. Skill 卡片和执行进度。
-3. 命令审批弹窗。
-4. Agent 对话界面。
-5. 扫描结果展示。
-6. 审计日志查看器。
+1. `App.tsx` 只组合全局 layout 和当前 page，不承载业务状态。
+2. `pages/` 放页面级状态、effect 和业务编排，例如聊天页。
+3. `layout/` 放桌面壳稳定布局，例如标题栏和侧边栏。
+4. `features/` 放业务功能组件，例如 Agent 对话、工具调用、审批卡片和输入框。
+5. `components/` 放跨功能复用组件，例如 Markdown 渲染器。
+6. `lib/` 放纯函数、格式化和状态工具。
+7. `services/` 放 Tauri/backend 通信适配，例如 Agent 流和会话存储。
+8. `ui/AGENTS.md` 记录 UI 模块的色彩、样式、组件拆分和交互规范。
 
 ### `src-tauri/`
 
@@ -282,11 +296,15 @@ assets/
 
 ```text
 data/
+  config/
+    nanobot_config.json
+  record/
+  logs/
+  cache/
 downloads/
 driver-cache/
 runtime-cache/
 audit-logs/
-logs/
 ```
 
 这些路径已经被 `.gitignore` 忽略。

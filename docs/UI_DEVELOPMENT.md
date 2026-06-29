@@ -9,7 +9,7 @@
 1. 类 Codex App 的简洁桌面布局。
 2. 左侧全局会话列表，不按项目文件夹分组。
 3. 主区域聊天界面、工具调用卡片、审批面板、底部输入框。
-4. 新建会话、搜索会话、发送消息和 `localStorage` 状态暂存。
+4. 新建会话、搜索会话、发送消息和 backend JSON 会话持久化。
 5. `streamdown` Markdown 渲染，用于 assistant 流式消息。
 6. Python backend 基于 nanobot SDK，提供本地 HTTP NDJSON 流式接口。
 7. Tauri 2 桌面壳，默认窗口 `1200x756`，最小窗口 `900x620`，支持拉伸。
@@ -26,9 +26,13 @@
 │   ├── package.json          # 前端依赖和脚本
 │   ├── vite.config.ts        # Vite 配置
 │   └── src/
-│       ├── App.tsx           # UI 主体
-│       ├── components/       # UI 组件，例如 Markdown 消息渲染
-│       ├── services/         # 前端服务适配，例如 agentClient
+│       ├── App.tsx           # 应用根入口，只组合全局 layout 和 page
+│       ├── pages/            # 页面级状态与业务编排，例如 ChatPage
+│       ├── layout/           # 桌面壳布局，例如标题栏和侧边栏
+│       ├── features/         # 业务组件，例如 chat、审批、工具调用
+│       ├── components/       # 跨功能复用组件，例如 Markdown 消息渲染
+│       ├── lib/              # 纯函数、格式化、状态工具
+│       ├── services/         # 前端服务适配，例如 agentClient 和 conversationStore
 │       ├── styles.css        # 全局样式
 │       └── types.ts          # 前端类型定义
 ├── backend/
@@ -237,10 +241,9 @@ npm exec --prefix ui -- tauri icon .\src-tauri\icons\app-icon.svg --output .\src
 1. `ui/src/types.ts` 定义会话、消息、工具调用、审批请求和 Agent 事件类型。
 2. `ui/src/services/agentClient.ts` 负责调用 Tauri `ensure_backend`，并读取 backend NDJSON 流。
 3. `ui/src/components/MessageRenderer.tsx` 使用 `streamdown` 渲染 assistant Markdown。
-4. `localStorage` 暂时保存会话和消息，刷新后仍能保留演示数据。
-5. backend 未连接或配置缺失时，UI 会展示真实错误，不生成假回复。
-
-后续建议把会话持久化迁移到 Tauri 或 Python backend，避免长期依赖浏览器本地存储。
+4. `ui/src/services/conversationStore.ts` 通过 backend conversation API 读写本地 JSON 会话记录。
+5. `localStorage` 仅保留旧数据一次性迁移读取，不再保存主消息记录。
+6. backend 未连接或配置缺失时，UI 会展示真实错误，不生成假回复。
 
 ## 后续集成建议
 
