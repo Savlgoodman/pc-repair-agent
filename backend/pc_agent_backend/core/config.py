@@ -67,6 +67,7 @@ class RuntimeConfig:
     logs_dir: Path
     cache_dir: Path
     nanobot_config_path: Path
+    agent_adapter: str
 
 
 def resolve_data_dir(*, env: str, workspace: Path, data_dir_override: Path | None = None) -> Path:
@@ -95,6 +96,7 @@ def resolve_runtime_config(
     workspace: Path,
     config_override: Path | None = None,
     data_dir_override: Path | None = None,
+    agent_adapter_override: str | None = None,
 ) -> RuntimeConfig:
     env = os.environ.get(ENV_NAME, "").strip()
     data_dir = resolve_data_dir(env=env, workspace=workspace, data_dir_override=data_dir_override)
@@ -113,6 +115,12 @@ def resolve_runtime_config(
     )
     write_json_if_missing(nanobot_config_path, MINIMAL_NANOBOT_CONFIG)
 
+    agent_adapter = (
+        agent_adapter_override
+        or os.environ.get("REPAIR_AGENT_ADAPTER")
+        or "nanobot"
+    ).strip().lower()
+
     return RuntimeConfig(
         env=env,
         data_dir=data_dir,
@@ -121,4 +129,5 @@ def resolve_runtime_config(
         logs_dir=logs_dir,
         cache_dir=cache_dir,
         nanobot_config_path=nanobot_config_path,
+        agent_adapter=agent_adapter,
     )

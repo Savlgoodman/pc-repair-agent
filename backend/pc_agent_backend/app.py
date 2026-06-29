@@ -1,0 +1,36 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from pc_agent_backend.agents import create_agent_adapter
+from pc_agent_backend.api.router import api_router
+from pc_agent_backend.core.config import RuntimeConfig
+from pc_agent_backend.services.approvals import ApprovalBroker
+from pc_agent_backend.services.runtime import AppServices
+from pc_agent_backend.storage.conversations import ConversationStore
+
+
+def create_app(runtime_config: RuntimeConfig, workspace: Path) -> FastAPI:
+    app = FastAPI(title="PC Repair Agent Backend", version="0.1.0")
+    approvals = ApprovalBroker()
+    services = AppServices(
+        runtime_config=runtime_config,
+        workspace=workspace,
+        approvals=approvals,
+        conversation_store=ConversationStore(runtime_config.record_dir),
+        agent_adapter=create_agent_adapter(runtime_config=runtime_config, approvals=approvals),
+    )
+    app.state.services = services
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    app.include_router(api_router)
+    return app

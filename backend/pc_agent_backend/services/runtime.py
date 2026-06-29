@@ -1,0 +1,18 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+
+from pc_agent_backend.core.config import RuntimeConfig
+from pc_agent_backend.schemas.agent import AgentAdapter
+from pc_agent_backend.services.approvals import ApprovalBroker
+from pc_agent_backend.storage.conversations import ConversationStore
+
+
+@dataclass
+class AppServices:
+    runtime_config: RuntimeConfig
+    workspace: Path
+    approvals: ApprovalBroker
+    conversation_store: ConversationStore
+    agent_adapter: AgentAdapter

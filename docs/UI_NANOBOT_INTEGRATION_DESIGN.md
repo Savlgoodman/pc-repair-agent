@@ -564,13 +564,21 @@ UI 需要支持：
 
 ## 13. 配置方案
 
-建议新增 backend 配置模板：
+当前 backend 配置由运行时 data 目录管理，不再维护仓库内 `backend/config` 模板。
+
+开发环境由 `REPAIR_AGENTS_ENV=DEV` 选择项目 data 目录：
 
 ```text
-backend/config/nanobot_config.example.json
+data/config/nanobot_config.json
 ```
 
-内容保留环境变量占位：
+普通本机环境使用用户目录：
+
+```text
+~/.repair-agent/config/nanobot_config.json
+```
+
+当配置文件不存在时，backend 会自动创建最小配置，内容保留环境变量占位：
 
 ```json
 {
@@ -589,14 +597,13 @@ backend/config/nanobot_config.example.json
 }
 ```
 
-真实配置文件不提交：
+真实密钥不写入配置文件或仓库文件：
 
 ```text
-backend/config/nanobot_config.local.json
 .env
 ```
 
-API Key 不进入 UI localStorage。后续应放入系统凭据存储或 Tauri 安全配置。
+API Key 不进入 UI localStorage。当前通过环境变量读取，后续可放入系统凭据存储或 Tauri 安全配置。
 
 ## 14. 分阶段实现计划
 

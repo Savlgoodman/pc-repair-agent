@@ -1,18 +1,18 @@
 # 运行时数据与聊天 UI 优化设计
 
-本文记录权限确认卡片、工具调用卡片、运行时配置目录和消息持久化的优化方案。本文只做设计，不包含实现代码改动。
+本文记录权限确认卡片、工具调用卡片、运行时配置目录和消息持久化的优化方案，以及当前已落地的后端拆分结构。
 
 ## 1. 背景
 
-当前实现状态：
+设计提出时的历史状态：
 
 1. UI 通过 `ui/src/services/agentClient.ts` 调用 Tauri `ensure_backend`，再读取 Python backend 的 NDJSON 流。
 2. `ui/src/App.tsx` 直接维护会话、消息、工具调用和审批状态。
 3. 会话与消息暂存在浏览器 `localStorage`，键名为 `pc-agent-ui-state-v2`。
 4. 权限确认卡片目前渲染在消息列表底部，和输入框没有形成固定关联。
 5. 工具调用卡片目前直接内联展示，完成后仍展开显示一个 `pre`，且只展示参数或结果中的一种。
-6. backend 默认读取 `backend/config/nanobot_config.local.json`，不存在时回退到 `demo/nanobot_config.local.json` 或示例配置。
-7. `src-tauri/src/lib.rs` 中 `choose_config_path(...)` 也硬编码了同样的仓库内配置查找逻辑。
+6. backend 曾默认读取仓库内配置文件，导致运行时配置和源码目录耦合。
+7. Tauri 曾在 Rust 侧参与选择配置路径，容易和 Python backend 的解析规则不一致。
 
 本轮目标是把用户交互和本地数据边界前移到更接近产品形态的设计：
 
@@ -175,9 +175,9 @@ ensure_minimal_config()
 注意：
 
 1. 自动创建的配置只包含环境变量占位，不写入真实 key。
-2. `backend/config/nanobot_config.example.json` 可以继续保留为仓库模板。
-3. 旧的 `backend/config/nanobot_config.local.json` 可作为开发兼容入口，但不应再作为默认首选路径。
-4. Tauri 的 `choose_config_path(...)` 后续应改为选择 data 目录或不再选择配置文件，让 backend 自行解析默认配置。
+2. 仓库内不再维护 `backend/config` 模板。
+3. 旧的仓库内本地配置不再作为默认路径；调试其他配置时使用 backend `--config` 显式指定。
+4. Tauri 不再选择配置文件，让 backend 自行解析默认配置。
 
 ## 4. 消息记录存储
 
@@ -611,41 +611,52 @@ AgentEvent
 6. 完成后的工具组和工具卡片默认折叠。
 7. 删除对话界面底部的推荐技能按钮区，即当前 `skill-strip` 中的“硬件扫描”“驱动下载”“运行库补全”按钮。
 
-## 9. 后端改造建议
+## 9. 后端结构现状
 
-推荐拆分：
+当前后端已经按 FastAPI 项目结构拆分：
 
 ```text
 backend/pc_agent_backend/
-  config.py
+  main.py                 # CLI 参数解析和 uvicorn 启动
+  app.py                  # FastAPI app 工厂、CORS 和 AppServices 装配
+  api/
+    router.py             # /api 路由聚合
+    dependencies.py       # 服务依赖入口
+    routes/
+      health.py           # 运行态和 adapter 能力检查
+      approvals.py        # 工具审批决策
+      conversations.py    # JSON 会话记录 API
+      turns.py            # Agent 流式运行和取消
+  agents/
+    registry.py           # adapter 选择
+    risk.py               # 工具风险分级
+    nanobot/
+      adapter.py          # nanobot run_streamed 适配
+      events.py           # nanobot 事件映射
+      hooks.py            # UI 审批 hook
+    codex/                # 预留 Codex adapter
+    claude_code/          # 预留 Claude Code adapter
+  core/
+    config.py             # data 目录、环境变量和最小配置
+    encoding.py
+    json_utils.py
+    paths.py
+  schemas/
+    agent.py              # 统一 AgentAdapter 协议
+  services/
+    approvals.py          # ApprovalBroker
+    runtime.py            # AppServices
   storage/
-    __init__.py
     conversations.py
-  main.py
 ```
 
-`config.py`：
+Agent adapter 边界：
 
-1. 解析 `REPAIR_AGENTS_ENV`。
-2. 解析 data 根目录。
-3. 创建 `config/record/logs/cache`。
-4. 创建最小 nanobot 配置。
-5. 返回 `RuntimeConfig`。
-
-`storage/conversations.py`：
-
-1. 创建会话目录。
-2. 读写 `session.json`。
-3. 读写 `messages.json`。
-4. 追加 `events.ndjson`。
-5. 提供 JSON schema version 迁移入口。
-
-`main.py`：
-
-1. 启动时构造 `RuntimeConfig`。
-2. `Nanobot.from_config(...)` 使用 `runtime_config.nanobot_config_path`。
-3. 增加 conversation API。
-4. stream turn 事件可选追加到 `events.ndjson`。
+1. API 层只依赖 `AgentAdapter.stream_turn()` 和 `cancel_turn()`，不直接依赖 nanobot SDK。
+2. `nanobot` adapter 负责 `Nanobot.from_config(...)`、流式事件转换、工具审批 hook、会话 key 和运行取消。
+3. `codex` 与 `claude_code` adapter 当前为占位实现，后续接入 SDK 时应保持相同事件协议。
+4. 工具注册、权限审批、工具入参/出参映射应放在对应 adapter 内，通用风险文案放在 `agents/risk.py`。
+5. 配置不再读取仓库 `backend/config`，而是读取运行时 data 目录，并在缺失时自动创建 `config/nanobot_config.json`。
 
 ## 10. 迁移策略
 

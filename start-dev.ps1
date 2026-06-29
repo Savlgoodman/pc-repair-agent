@@ -20,10 +20,6 @@ if (-not (Get-Command "uv.exe" -ErrorAction SilentlyContinue)) {
   throw "uv.exe not found. Install uv or add uv to PATH."
 }
 
-if (-not (Test-Path (Join-Path $repoRoot "backend\config\nanobot_config.local.json"))) {
-  Write-Warning "backend config not found. Backend will try demo\nanobot_config.local.json fallback."
-}
-
 New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
 
 $proxyLines = @()

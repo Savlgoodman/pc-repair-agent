@@ -129,42 +129,49 @@ Python Agent 后台目录，最终会作为 sidecar 随 Tauri 应用分发。
 
 ```text
 backend/
-  pc_agent/
-    __init__.py
-    main.py
-    protocol/
-    agent_runtime/
-      base.py
-      nanobot_adapter.py
-      codex_adapter.py
-      registry.py
-    skills/
-      loader.py
-      runner.py
-      manifest.py
-    system/
-      hardware.py
-      drivers.py
-      runtimes.py
-      os_info.py
-      logs.py
-    planning/
-    downloads/
-    security/
+  pc_agent_backend/
+    main.py                 # CLI 入口，只负责参数解析和 uvicorn 启动
+    app.py                  # FastAPI app 工厂和服务装配
+    api/
+      router.py             # /api 路由聚合
+      dependencies.py       # FastAPI 依赖入口
+      routes/
+        health.py
+        approvals.py
+        conversations.py
+        turns.py
+    agents/
+      registry.py           # 根据配置选择 Agent Adapter
+      risk.py               # 工具风险分级和说明
+      nanobot/              # nanobot SDK 真实适配层
+        adapter.py          # 流式运行、取消、会话 key 和 hook 装配
+        events.py           # nanobot 事件映射为 UI 统一事件
+        hooks.py            # 工具审批 hook
+      codex/                # Codex 适配层预留
+      claude_code/          # Claude Code 适配层预留
+    core/
+      config.py             # 环境、data 目录和最小配置创建
+      encoding.py           # stdio UTF-8 设置
+      json_utils.py         # JSON/NDJSON 序列化工具
+      paths.py              # 仓库和默认 workspace 路径
+    schemas/
+      agent.py              # Agent Adapter 协议和运行请求模型
+    services/
+      approvals.py          # 审批等待与决策 broker
+      runtime.py            # AppServices 聚合对象
     storage/
+      conversations.py      # JSON 会话记录存储
   tests/
   pyproject.toml
 ```
 
 职责：
 
-1. Agent 编排。
-2. Agent Runtime Adapter 选择。
-3. Skill 加载和执行。
-4. 硬件与系统扫描。
-5. 驱动和运行时来源发现。
-6. 维修计划生成。
-7. 进度事件流式返回。
+1. 提供本地 FastAPI backend，作为 Tauri sidecar 的 HTTP/NDJSON 接口。
+2. 通过统一 Agent Adapter 协议隔离 nanobot、Codex、Claude Code 等运行时。
+3. 将工具调用、权限审批、流式事件映射放在具体 adapter 内，业务路由只依赖统一事件。
+4. 读写运行时 data 目录，包括自动创建最小 `config/nanobot_config.json` 和 `record/` 会话记录。
+5. 为后续 Skill、系统扫描、驱动下载、执行网关请求等模块保留独立目录边界。
 
 ### `skills/`
 

@@ -38,8 +38,15 @@
 ├── backend/
 │   ├── pyproject.toml        # Python backend 依赖
 │   ├── uv.lock               # uv 锁文件
-│   ├── config/               # nanobot 配置模板
-│   └── pc_agent_backend/     # backend 源码
+│   └── pc_agent_backend/     # FastAPI backend 源码
+│       ├── main.py           # CLI/uvicorn 启动入口
+│       ├── app.py            # FastAPI app 工厂
+│       ├── api/              # health、conversation、turn、approval 路由
+│       ├── agents/           # nanobot/codex/claude_code adapter 层
+│       ├── core/             # 配置、路径、编码、JSON 工具
+│       ├── schemas/          # 后端内部协议类型
+│       ├── services/         # 运行态服务和审批 broker
+│       └── storage/          # JSON 会话存储
 └── src-tauri/
     ├── Cargo.toml            # Tauri Rust 工程配置
     ├── tauri.conf.json       # Tauri 应用、窗口、构建和图标配置
@@ -159,10 +166,16 @@ http://127.0.0.1:8765
 npm run backend:dev
 ```
 
-如果需要指定 nanobot 配置：
+默认开发环境由 `start-dev.ps1` 设置 `REPAIR_AGENTS_ENV=DEV`，backend 会读取或自动创建：
+
+```text
+data/config/nanobot_config.json
+```
+
+如果需要指定 nanobot 配置或切换 adapter：
 
 ```powershell
-uv run --project backend python -m pc_agent_backend.main --config .\demo\nanobot_config.local.json --workspace .
+uv run --project backend python -m pc_agent_backend.main --config .\demo\nanobot_config.local.json --workspace . --agent-adapter nanobot
 ```
 
 ## 前端单独调试
@@ -315,23 +328,14 @@ http://127.0.0.1:7899
 
 ### backend 配置缺失
 
-backend 默认优先读取：
+backend 默认读取运行时 data 目录中的配置，并在文件不存在时自动创建最小配置：
 
 ```text
-backend/config/nanobot_config.local.json
+REPAIR_AGENTS_ENV=DEV  ->  <repo>/data/config/nanobot_config.json
+其他环境              ->  ~/.repair-agent/config/nanobot_config.json
 ```
 
-如果该文件不存在，Tauri 启动 backend 时会回退到：
-
-```text
-demo/nanobot_config.local.json
-```
-
-真实配置不提交到仓库。可以从模板复制：
-
-```powershell
-Copy-Item .\backend\config\nanobot_config.example.json .\backend\config\nanobot_config.local.json
-```
+仓库内不再维护 `backend/config` 配置模板。需要临时调试其他配置时，可以使用 `--config` 指定显式路径。
 
 API Key 使用环境变量：
 
