@@ -37,7 +37,8 @@ if (-not $NoProxy) {
 
 $backendLines = @(
   "@echo off",
-  "chcp 65001 > nul"
+  "chcp 65001 > nul",
+  "set `"REPAIR_AGENTS_ENV=DEV`""
 ) + $proxyLines + @(
   "cd /d `"$repoRoot`"",
   "echo PC Agent Backend - $backendUrl",
@@ -46,7 +47,8 @@ $backendLines = @(
 
 $tauriLines = @(
   "@echo off",
-  "chcp 65001 > nul"
+  "chcp 65001 > nul",
+  "set `"REPAIR_AGENTS_ENV=DEV`""
 ) + $proxyLines + @(
   "cd /d `"$repoRoot`"",
   "echo PC Agent Tauri Desktop",
