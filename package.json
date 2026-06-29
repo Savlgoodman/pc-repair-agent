@@ -1,0 +1,14 @@
+{
+  "name": "pc-agent",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "backend:dev": "uv run --project backend python -m pc_agent_backend.main",
+    "backend:sync": "uv sync --project backend",
+    "ui:dev": "npm run dev --prefix ui",
+    "ui:build": "npm run build --prefix ui",
+    "tauri:dev": "npm exec --prefix ui -- tauri dev",
+    "tauri:dev:win": "powershell -ExecutionPolicy Bypass -File scripts/dev-tauri.ps1",
+    "tauri:build": "npm exec --prefix ui -- tauri build"
+  }
+}
