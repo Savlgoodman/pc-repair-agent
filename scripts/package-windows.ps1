@@ -1,4 +1,5 @@
 param(
+  [string]$Version,
   [string]$Proxy = "http://127.0.0.1:7899",
   [switch]$NoProxy,
   [switch]$SkipDependencySync,
@@ -28,6 +29,12 @@ if ($NoProxy) {
 
 $env:PYTHONUTF8 = "1"
 New-Item -ItemType Directory -Force -Path $backendBinaryDir | Out-Null
+
+$versionArgs = @()
+if (-not [string]::IsNullOrWhiteSpace($Version)) {
+  $versionArgs += $Version
+}
+& (Join-Path $repoRoot "scripts\set-version.ps1") @versionArgs
 
 if (-not $SkipDependencySync) {
   npm install --prefix (Join-Path $repoRoot "ui")

@@ -29,15 +29,27 @@ cargo check --manifest-path .\src-tauri\Cargo.toml
 
 ## 版本号
 
-统一更新版本号：
+版本号以根目录 `VERSION` 文件为唯一手工维护入口。`package.json`、`ui/package.json`、`ui/package-lock.json`、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml`、`src-tauri/Cargo.lock`、`backend/pyproject.toml`、`backend/uv.lock` 和 `backend/pc_agent_backend/version.py` 中的版本字段都是派生值，由脚本同步。
+
+设置新版本：
 
 ```powershell
 npm run version:set -- 0.1.2
 ```
 
-该命令会同步根 `package.json`、`ui/package.json`、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml` 和 `backend/pyproject.toml`。
+也可以在发布时直接传入版本号：
 
-后端运行时版本常量位于 `backend/pc_agent_backend/version.py`，也由同一脚本同步。安装态关于页优先使用 Tauri 启动 sidecar 时注入的版本环境变量，避免依赖源码仓库中的 `package.json` 或 `pyproject.toml`。
+```powershell
+npm run release:win -- -Version 0.1.2
+```
+
+如果只手动修改了 `VERSION`，可执行：
+
+```powershell
+npm run version:sync
+```
+
+`release.ps1` 和 `scripts/package-windows.ps1` 会在打包前自动执行版本同步。安装态关于页优先使用 Tauri 启动 sidecar 时注入的版本环境变量，避免依赖源码仓库中的 `package.json` 或 `pyproject.toml`。
 
 ## 打包
 
@@ -45,6 +57,12 @@ npm run version:set -- 0.1.2
 
 ```powershell
 npm run package:win
+```
+
+指定版本并打包：
+
+```powershell
+npm run package:win -- -Version 0.1.2
 ```
 
 不使用代理：

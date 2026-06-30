@@ -12,6 +12,7 @@
     "tauri:build": "npm exec --prefix ui -- tauri build",
     "package:win": "powershell -ExecutionPolicy Bypass -File scripts/package-windows.ps1",
     "release:win": "powershell -ExecutionPolicy Bypass -File release.ps1",
+    "version:sync": "powershell -ExecutionPolicy Bypass -File scripts/set-version.ps1",
     "version:set": "powershell -ExecutionPolicy Bypass -File scripts/set-version.ps1"
   }
 }

@@ -1,4 +1,5 @@
 param(
+  [string]$Version,
   [string]$Proxy = "http://127.0.0.1:7899",
   [switch]$NoProxy,
   [switch]$SkipBuild,
@@ -12,6 +13,12 @@ $repoRoot = $PSScriptRoot
 $distDir = Join-Path $repoRoot "dist"
 $distFullPath = [System.IO.Path]::GetFullPath($distDir)
 $repoFullPath = [System.IO.Path]::GetFullPath($repoRoot)
+
+$versionArgs = @()
+if (-not [string]::IsNullOrWhiteSpace($Version)) {
+  $versionArgs += $Version
+}
+& (Join-Path $repoRoot "scripts\set-version.ps1") @versionArgs
 
 if (-not $distFullPath.StartsWith($repoFullPath, [System.StringComparison]::OrdinalIgnoreCase)) {
   throw "Refusing to write outside repo root: $distFullPath"
@@ -38,6 +45,9 @@ if (-not $SkipBuild) {
   }
   if ($SkipBackendBuild) {
     $packageArgs += "-SkipBackendBuild"
+  }
+  if (-not [string]::IsNullOrWhiteSpace($Version)) {
+    $packageArgs += @("-Version", $Version)
   }
 
   & (Join-Path $repoRoot "scripts\package-windows.ps1") @packageArgs

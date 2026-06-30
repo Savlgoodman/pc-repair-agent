@@ -1,12 +1,12 @@
 param(
-  [Parameter(Mandatory = $true, Position = 0)]
-  [ValidatePattern('^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$')]
+  [Parameter(Position = 0)]
   [string]$Version
 )
 
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+$versionFile = Join-Path $repoRoot "VERSION"
 
 function Write-Utf8NoBom {
   param(
@@ -26,13 +26,33 @@ function Update-RegexVersion {
     [Parameter(Mandatory = $true)]
     [string]$Pattern,
     [Parameter(Mandatory = $true)]
-    [string]$Replacement
+    [string]$Replacement,
+    [int]$Count = 1
   )
 
   $content = Get-Content -Raw -Encoding UTF8 $Path
-  $content = [regex]::Replace($content, $Pattern, $Replacement, 1)
+  if ($Count -lt 0) {
+    $content = [regex]::Replace($content, $Pattern, $Replacement)
+  } else {
+    $content = [regex]::Replace($content, $Pattern, $Replacement, $Count)
+  }
   Write-Utf8NoBom -Path $Path -Content $content
 }
+
+if ([string]::IsNullOrWhiteSpace($Version)) {
+  if (-not (Test-Path -LiteralPath $versionFile)) {
+    throw "VERSION file not found: $versionFile"
+  }
+  $Version = (Get-Content -Raw -Encoding UTF8 $versionFile).Trim()
+} else {
+  $Version = $Version.Trim()
+}
+
+if ($Version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') {
+  throw "Invalid version '$Version'. Expected SemVer like 0.1.2 or 0.1.2-beta.1"
+}
+
+Write-Utf8NoBom -Path $versionFile -Content "$Version`n"
 
 Update-RegexVersion `
   -Path (Join-Path $repoRoot "package.json") `
@@ -42,6 +62,16 @@ Update-RegexVersion `
 Update-RegexVersion `
   -Path (Join-Path $repoRoot "ui\package.json") `
   -Pattern '("version"\s*:\s*)".+?"' `
+  -Replacement "`${1}`"$Version`""
+
+Update-RegexVersion `
+  -Path (Join-Path $repoRoot "ui\package-lock.json") `
+  -Pattern '(?s)^(\{\s*"name"\s*:\s*"pc-agent-ui",\s*"version"\s*:\s*)".+?"' `
+  -Replacement "`${1}`"$Version`""
+
+Update-RegexVersion `
+  -Path (Join-Path $repoRoot "ui\package-lock.json") `
+  -Pattern '(?s)(\s*""\s*:\s*\{\s*"name"\s*:\s*"pc-agent-ui",\s*"version"\s*:\s*)".+?"' `
   -Replacement "`${1}`"$Version`""
 
 Update-RegexVersion `
@@ -55,13 +85,28 @@ Update-RegexVersion `
   -Replacement "version = `"$Version`""
 
 Update-RegexVersion `
+  -Path (Join-Path $repoRoot "src-tauri\Cargo.lock") `
+  -Pattern '(?ms)(\[\[package\]\]\s+name = "pc-repair-agent"\s+version = )".+?"' `
+  -Replacement "`${1}`"$Version`""
+
+Update-RegexVersion `
   -Path (Join-Path $repoRoot "backend\pyproject.toml") `
   -Pattern '(?m)^version = ".+?"' `
   -Replacement "version = `"$Version`""
 
 Update-RegexVersion `
+  -Path (Join-Path $repoRoot "backend\uv.lock") `
+  -Pattern '(?ms)(\[\[package\]\]\s+name = "pc-agent-backend"\s+version = )".+?"' `
+  -Replacement "`${1}`"$Version`""
+
+Update-RegexVersion `
   -Path (Join-Path $repoRoot "backend\pc_agent_backend\version.py") `
-  -Pattern '(?m)^(APP_VERSION|BACKEND_VERSION) = ".+?"' `
-  -Replacement "`${1} = `"$Version`""
+  -Pattern '(?m)^APP_VERSION = ".+?"' `
+  -Replacement "APP_VERSION = `"$Version`""
+
+Update-RegexVersion `
+  -Path (Join-Path $repoRoot "backend\pc_agent_backend\version.py") `
+  -Pattern '(?m)^BACKEND_VERSION = ".+?"' `
+  -Replacement "BACKEND_VERSION = `"$Version`""
 
 Write-Host "Version synchronized to $Version"

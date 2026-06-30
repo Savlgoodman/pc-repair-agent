@@ -6,25 +6,33 @@
 
 ## 版本号
 
-项目使用 SemVer，例如 `0.1.1`：
+项目使用 SemVer，例如 `0.1.2`：
 
 1. `0.1.x`：原型期修复和小功能。
 2. `0.x.0`：较大功能阶段，例如新增自动更新或执行网关。
 3. `x.0.0`：稳定发布后再使用。
 
-同步版本号：
+根目录 `VERSION` 是版本号的唯一手工维护入口。各工具链仍需要静态版本字段，所以 `package.json`、Tauri、Cargo、Python backend 和锁文件中的版本由脚本派生同步。
+
+设置新版本：
 
 ```powershell
 npm run version:set -- 0.1.2
 ```
 
-该脚本会同步：
+也可以发布时直接传入版本号：
 
-1. `package.json`
-2. `ui/package.json`
-3. `src-tauri/tauri.conf.json`
-4. `src-tauri/Cargo.toml`
-5. `backend/pyproject.toml`
+```powershell
+npm run release:win -- -Version 0.1.2
+```
+
+如果只修改了 `VERSION` 文件，执行：
+
+```powershell
+npm run version:sync
+```
+
+`release.ps1` 和 `scripts/package-windows.ps1` 会在打包前自动同步版本。
 
 ## 打包
 
@@ -51,7 +59,7 @@ src-tauri/target/release/bundle/msi/
 
 当前阶段推荐手动更新：
 
-1. 更新版本号，例如 `npm run version:set -- 0.1.2`。
+1. 更新版本号，例如 `npm run version:set -- 0.1.2`，或修改 `VERSION` 后运行 `npm run version:sync`。
 2. 运行验证命令。
 3. 执行 `npm run package:win`。
 4. 发布新的 `.exe` 或 `.msi`。
