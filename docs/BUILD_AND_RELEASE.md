@@ -37,6 +37,8 @@ npm run version:set -- 0.1.2
 
 该命令会同步根 `package.json`、`ui/package.json`、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml` 和 `backend/pyproject.toml`。
 
+后端运行时版本常量位于 `backend/pc_agent_backend/version.py`，也由同一脚本同步。安装态关于页优先使用 Tauri 启动 sidecar 时注入的版本环境变量，避免依赖源码仓库中的 `package.json` 或 `pyproject.toml`。
+
 ## 打包
 
 完整 Windows 打包：

@@ -10,6 +10,8 @@ from typing import Any
 
 from fastapi import APIRouter
 
+from pc_agent_backend.core.process_utils import run_hidden
+
 
 router = APIRouter()
 
@@ -90,7 +92,7 @@ try {
   gpuLoad = $gpuLoad
 } | ConvertTo-Json -Compress -Depth 3
 """
-    result = subprocess.run(
+    result = run_hidden(
         ["powershell", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script],
         capture_output=True,
         encoding="utf-8",

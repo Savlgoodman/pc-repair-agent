@@ -59,4 +59,9 @@ Update-RegexVersion `
   -Pattern '(?m)^version = ".+?"' `
   -Replacement "version = `"$Version`""
 
+Update-RegexVersion `
+  -Path (Join-Path $repoRoot "backend\pc_agent_backend\version.py") `
+  -Pattern '(?m)^(APP_VERSION|BACKEND_VERSION) = ".+?"' `
+  -Replacement "`${1} = `"$Version`""
+
 Write-Host "Version synchronized to $Version"

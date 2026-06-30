@@ -12,10 +12,11 @@ from pc_agent_backend.services.approvals import ApprovalBroker
 from pc_agent_backend.services.conversation_recorder import ConversationRecorder
 from pc_agent_backend.services.runtime import AppServices
 from pc_agent_backend.storage.conversations import ConversationStore
+from pc_agent_backend.version import BACKEND_VERSION
 
 
 def create_app(runtime_config: RuntimeConfig, workspace: Path) -> FastAPI:
-    app = FastAPI(title="PC Repair Agent Backend", version="0.1.0")
+    app = FastAPI(title="PC Repair Agent Backend", version=BACKEND_VERSION)
     approvals = ApprovalBroker()
     conversation_store = ConversationStore(runtime_config.record_dir)
     services = AppServices(

@@ -46,6 +46,7 @@ use std::os::windows::process::CommandExt;
 const BACKEND_HOST: &str = "127.0.0.1";
 const BACKEND_PORT: u16 = 8765;
 const BACKEND_SIDECAR: &str = "pc-agent-backend";
+const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 #[derive(Default)]
@@ -207,6 +208,8 @@ fn start_sidecar_backend(app: &tauri::AppHandle) -> Result<BackendChild, String>
         .arg("--log-file")
         .arg(log_path.as_os_str())
         .env("PYTHONUTF8", "1")
+        .env("REPAIR_AGENT_APP_VERSION", APP_VERSION)
+        .env("REPAIR_AGENT_BACKEND_VERSION", APP_VERSION)
         .spawn()
         .map_err(|error| format!("failed to spawn backend sidecar: {error}"))?;
 
@@ -268,6 +271,8 @@ fn start_dev_backend() -> Result<BackendChild, String> {
         .arg(&log_path)
         .current_dir(&backend_dir)
         .env("PYTHONUTF8", "1")
+        .env("REPAIR_AGENT_APP_VERSION", APP_VERSION)
+        .env("REPAIR_AGENT_BACKEND_VERSION", APP_VERSION)
         .stdin(Stdio::null())
         .stdout(
             open_append_log(&log_path)

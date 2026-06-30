@@ -16,8 +16,10 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
 from pc_agent_backend.api.dependencies import get_services
+from pc_agent_backend.core.process_utils import run_hidden
 from pc_agent_backend.core.paths import REPO_ROOT
 from pc_agent_backend.services.runtime import AppServices
+from pc_agent_backend.version import APP_VERSION, BACKEND_VERSION
 
 
 router = APIRouter()
@@ -88,7 +90,7 @@ def _read_pyproject_version(path: Path) -> str:
 
 def _run_git(args: list[str], workspace: Path) -> str:
     try:
-        result = subprocess.run(
+        result = run_hidden(
             ["git", *args],
             cwd=workspace,
             capture_output=True,
@@ -137,10 +139,18 @@ def _collect_about_info(services: AppServices) -> dict[str, Any]:
     total_size = _directory_size(runtime_config.data_dir)
     workspace = services.workspace
     remote = _sanitize_remote(_run_git(["config", "--get", "remote.origin.url"], workspace))
+    app_version = os.environ.get("REPAIR_AGENT_APP_VERSION") or _read_json_version(REPO_ROOT / "package.json")
+    if app_version == "待检测":
+        app_version = APP_VERSION
+    backend_version = os.environ.get("REPAIR_AGENT_BACKEND_VERSION") or _read_pyproject_version(
+        REPO_ROOT / "backend" / "pyproject.toml"
+    )
+    if backend_version == "待检测":
+        backend_version = BACKEND_VERSION
 
     return {
-        "appVersion": _read_json_version(REPO_ROOT / "package.json"),
-        "backendVersion": _read_pyproject_version(REPO_ROOT / "backend" / "pyproject.toml"),
+        "appVersion": app_version,
+        "backendVersion": backend_version,
         "runtimeEnv": runtime_config.env or "默认",
         "agentAdapter": runtime_config.agent_adapter,
         "workspace": str(workspace),
