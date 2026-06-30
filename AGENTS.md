@@ -118,15 +118,15 @@ powershell -ExecutionPolicy Bypass -File .\scripts\dev-tauri.ps1 -Proxy http://1
 分支命名格式：
 
 ```text
-<type>/<scope>-date<MMdd>-<name>
+<type>/<scope>-<MMdd>-<name>
 ```
 
 示例：
 
 ```text
-feat/settings-date0630-model-provider
-fix/backend-date0630-sidecar-lifecycle
-perf/overview-date0630-cache
+feat/settings-0630-model-provider
+fix/backend-0630-sidecar-lifecycle
+perf/overview-0630-cache
 ```
 
 `master` 分支只保留以下操作：

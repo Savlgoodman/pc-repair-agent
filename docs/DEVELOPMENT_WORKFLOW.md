@@ -26,16 +26,16 @@
 
 1. `<type>` 使用提交类型风格，例如 `feat`、`fix`、`perf`、`refactor`、`test`、`docs`、`chore`。
 2. `<scope>` 表示影响范围、模块或任务编号，例如 `ui`、`backend`、`tauri`、`release`。
-3. `date<MMdd>` 使用创建分支当天的 4 位月日，例如 6 月 30 日写作 `date0630`。
+3. `<MMdd>` 使用创建分支当天的 4 位月日，例如 6 月 30 日写作 `0630`。
 4. `<name>` 使用简短英文短横线描述，避免空格、中文和特殊符号。
 
 示例：
 
 ```text
-feat/settings-date0630-model-provider
-fix/backend-date0630-sidecar-lifecycle
-perf/overview-date0630-cache
-refactor/release-date0630-version-sync
+feat/settings-0630-model-provider
+fix/backend-0630-sidecar-lifecycle
+perf/overview-0630-cache
+refactor/release-0630-version-sync
 ```
 
 ## 开发流程
@@ -45,7 +45,7 @@ refactor/release-date0630-version-sync
 ```powershell
 git switch master
 git pull
-git switch -c feat/settings-date0630-model-provider
+git switch -c feat/settings-0630-model-provider
 ```
 
 开发过程中保持小步提交，每个提交对应一个清晰目标。提交前应至少执行：
@@ -71,7 +71,7 @@ git status --short
 
 ```powershell
 git switch master
-git merge --no-ff feat/settings-date0630-model-provider
+git merge --no-ff feat/settings-0630-model-provider
 npm run version:set -- 0.1.3
 git status --short
 git add VERSION package.json ui/package.json ui/package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock backend/pyproject.toml backend/uv.lock backend/pc_agent_backend/version.py
