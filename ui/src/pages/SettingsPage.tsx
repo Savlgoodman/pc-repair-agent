@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ArchiveRestore,
@@ -71,6 +71,18 @@ const protocolOptions: Array<{ label: string; value: ModelProtocol }> = [
   { label: "OpenAI Responses", value: "openai_responses" }
 ];
 
+const defaultStrategyOptions = [
+  { label: "沿用上次使用的模型", value: "last_used" },
+  { label: "固定指定模型", value: "fixed" }
+] satisfies Array<SettingsSelectOption<"fixed" | "last_used">>;
+
+const reasoningEffortOptions = [
+  { label: "none", value: "none" },
+  { label: "low", value: "low" },
+  { label: "medium", value: "medium" },
+  { label: "high", value: "high" }
+] satisfies Array<SettingsSelectOption<string>>;
+
 interface ProviderEditDraft {
   apiKey: string;
   baseUrl: string;
@@ -92,8 +104,79 @@ interface ModelEditDraft {
   temperature: string;
 }
 
+interface SettingsSelectOption<T extends string> {
+  label: string;
+  value: T;
+}
+
+interface SettingsSelectProps<T extends string> {
+  disabled?: boolean;
+  onChange: (value: T) => void;
+  options: Array<SettingsSelectOption<T>>;
+  value: T;
+}
+
 function protocolLabel(value: ModelProtocol) {
   return protocolOptions.find((item) => item.value === value)?.label ?? value;
+}
+
+function SettingsSelect<T extends string>({ disabled = false, onChange, options, value }: SettingsSelectProps<T>) {
+  const [isOpen, setIsOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const selected = options.find((item) => item.value === value) ?? options[0] ?? null;
+
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+
+    function closeOnOutside(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    window.addEventListener("mousedown", closeOnOutside);
+    return () => window.removeEventListener("mousedown", closeOnOutside);
+  }, [isOpen]);
+
+  function chooseOption(option: SettingsSelectOption<T>) {
+    onChange(option.value);
+    setIsOpen(false);
+  }
+
+  return (
+    <div className={`settings-select ${isOpen ? "open" : ""}`} ref={rootRef}>
+      <button
+        aria-expanded={isOpen}
+        aria-haspopup="listbox"
+        className="settings-select-button"
+        disabled={disabled}
+        onClick={() => setIsOpen((current) => !current)}
+        type="button"
+      >
+        <span>{selected?.label ?? "请选择"}</span>
+        <ChevronDown size={14} />
+      </button>
+      {isOpen ? (
+        <div className="settings-select-menu" role="listbox">
+          {options.map((option) => (
+            <button
+              aria-selected={option.value === value}
+              className={`settings-select-option ${option.value === value ? "selected" : ""}`}
+              key={option.value}
+              onClick={() => chooseOption(option)}
+              role="option"
+              type="button"
+            >
+              <span>{option.label}</span>
+              {option.value === value ? <Check size={14} /> : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function modelEditDraft(model: ConfiguredModel): ModelEditDraft {
@@ -461,11 +544,7 @@ function ModelProvidersSettings() {
           </label>
           <label className="settings-field">
             <span>协议</span>
-            <select onChange={(event) => setProtocol(event.target.value as ModelProtocol)} value={protocol}>
-              {protocolOptions.map((item) => (
-                <option key={item.value} value={item.value}>{item.label}</option>
-              ))}
-            </select>
+            <SettingsSelect onChange={setProtocol} options={protocolOptions} value={protocol} />
           </label>
         </div>
 
@@ -499,28 +578,24 @@ function ModelProvidersSettings() {
         <div className="settings-default-row">
           <label className="settings-field">
             <span>新会话默认模型</span>
-            <select
-              onChange={(event) => void changeDefaultStrategy(event.target.value)}
+            <SettingsSelect
+              onChange={(value) => void changeDefaultStrategy(value)}
+              options={defaultStrategyOptions}
               value={settings?.defaultStrategy ?? "last_used"}
-            >
-              <option value="last_used">沿用上次使用的模型</option>
-              <option value="fixed">固定指定模型</option>
-            </select>
+            />
           </label>
           <label className="settings-field">
             <span>固定模型</span>
-            <select
+            <SettingsSelect
               disabled={(settings?.defaultStrategy ?? "last_used") !== "fixed" || configuredModels.length === 0}
-              onChange={(event) => void setDefaultModel(event.target.value)}
+              onChange={(value) => void setDefaultModel(value)}
+              options={
+                configuredModels.length === 0
+                  ? [{ label: "暂无模型", value: "" }]
+                  : configuredModels.map((model) => ({ label: model.label, value: model.id }))
+              }
               value={settings?.effectiveDefaultModelId ?? ""}
-            >
-              {configuredModels.length === 0 ? <option value="">暂无模型</option> : null}
-              {configuredModels.map((model) => (
-                <option key={model.id} value={model.id}>
-                  {model.label}
-                </option>
-              ))}
-            </select>
+            />
           </label>
         </div>
       </div>
@@ -675,14 +750,11 @@ function ModelProvidersSettings() {
               </label>
               <label className="settings-field">
                 <span>协议</span>
-                <select
-                  onChange={(event) => setProviderDraft({ ...providerDraft, protocol: event.target.value as ModelProtocol })}
+                <SettingsSelect
+                  onChange={(value) => setProviderDraft({ ...providerDraft, protocol: value })}
+                  options={protocolOptions}
                   value={providerDraft.protocol}
-                >
-                  {protocolOptions.map((item) => (
-                    <option key={item.value} value={item.value}>{item.label}</option>
-                  ))}
-                </select>
+                />
               </label>
               <label className="settings-field settings-field-wide">
                 <span>URL</span>
@@ -750,14 +822,11 @@ function ModelProvidersSettings() {
               </label>
               <label className="settings-field">
                 <span>协议</span>
-                <select
-                  onChange={(event) => setModelDraft({ ...modelDraft, protocol: event.target.value as ModelProtocol })}
+                <SettingsSelect
+                  onChange={(value) => setModelDraft({ ...modelDraft, protocol: value })}
+                  options={protocolOptions}
                   value={modelDraft.protocol}
-                >
-                  {protocolOptions.map((item) => (
-                    <option key={item.value} value={item.value}>{item.label}</option>
-                  ))}
-                </select>
+                />
               </label>
               <label className="settings-field">
                 <span>上下文长度</span>
@@ -788,15 +857,11 @@ function ModelProvidersSettings() {
               </label>
               <label className="settings-field">
                 <span>Reasoning Effort</span>
-                <select
-                  onChange={(event) => setModelDraft({ ...modelDraft, reasoningEffort: event.target.value })}
+                <SettingsSelect
+                  onChange={(value) => setModelDraft({ ...modelDraft, reasoningEffort: value })}
+                  options={reasoningEffortOptions}
                   value={modelDraft.reasoningEffort}
-                >
-                  <option value="none">none</option>
-                  <option value="low">low</option>
-                  <option value="medium">medium</option>
-                  <option value="high">high</option>
-                </select>
+                />
               </label>
             </div>
             <div className="settings-toggle-row modal-toggle-row wrap">

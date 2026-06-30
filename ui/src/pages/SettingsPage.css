@@ -158,7 +158,7 @@
 }
 
 .settings-field input,
-.settings-field select {
+.settings-select-button {
   height: 38px;
   min-width: 0;
   border: 1px solid #ddd9d4;
@@ -169,14 +169,126 @@
   outline: 0;
 }
 
+.settings-select {
+  position: relative;
+  min-width: 0;
+}
+
+.settings-select-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  border-color: #d4d0cb;
+  background-color: #fff;
+  padding: 0 10px 0 11px;
+  text-align: left;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.65),
+    0 1px 2px rgba(32, 36, 43, 0.05);
+}
+
+.settings-select-button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-select-button svg {
+  flex: 0 0 auto;
+  color: #697079;
+}
+
+.settings-select-button:hover,
+.settings-select.open .settings-select-button {
+  border-color: #bfc7cf;
+  background-color: #fdfdfc;
+}
+
+.settings-select-button:disabled {
+  cursor: default;
+  opacity: 0.62;
+}
+
+.settings-select-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  z-index: 25;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid rgba(213, 210, 205, 0.94);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 14px 36px rgba(32, 36, 43, 0.14);
+  padding: 6px;
+}
+
+.settings-select-option {
+  width: 100%;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  padding: 0 8px;
+  color: #2f353d;
+  font: inherit;
+  text-align: left;
+}
+
+.settings-select-option span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-select-option svg {
+  flex: 0 0 auto;
+}
+
+.settings-select-option:hover,
+.settings-select-option.selected {
+  background: #f0f1f2;
+  color: #20242b;
+}
+
+.settings-select-menu {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(105, 112, 121, 0.28) transparent;
+}
+
+.settings-select-menu::-webkit-scrollbar {
+  width: 4px;
+}
+
+.settings-select-menu::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(105, 112, 121, 0.28);
+}
+
 .settings-field-wide {
   grid-column: 1 / -1;
 }
 
 .settings-field input:focus,
-.settings-field select:focus {
+.settings-select-button:focus {
   border-color: #aeb8c3;
   background: #fff;
+}
+
+.settings-select-button:focus {
+  box-shadow:
+    0 0 0 3px rgba(95, 127, 156, 0.14),
+    0 1px 2px rgba(32, 36, 43, 0.06);
 }
 
 .settings-toggle-row {
