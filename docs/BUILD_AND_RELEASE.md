@@ -59,6 +59,8 @@ npm run version:sync
 npm run package:win
 ```
 
+打包命令会在默认 Tauri 配置之外合并 `src-tauri/tauri.release.conf.json`，并把 `src-tauri/binaries/pc-agent-backend-x86_64-pc-windows-msvc.exe` 作为 backend sidecar 打入安装包。开发模式不合并该配置，因此无需预先生成 sidecar。
+
 指定版本并打包：
 
 ```powershell
