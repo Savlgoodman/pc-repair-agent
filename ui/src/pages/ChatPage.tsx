@@ -30,6 +30,7 @@ import "./ChatPage.css";
 const DRAFT_SESSION_ID = "__draft_session__";
 const STREAM_DELTA_FLUSH_MS = 60;
 type ActiveView = "chat" | "overview" | "settings";
+type PendingApprovalState = ApprovalRequest & { conversationId: string };
 
 function createDraftSession(): Session {
   return {
@@ -73,6 +74,31 @@ function upsertToolCall(
   );
 }
 
+function mergeLoadedMessages(loadedMessages: ChatMessage[], cachedMessages: ChatMessage[] | undefined) {
+  if (!cachedMessages?.length) {
+    return loadedMessages;
+  }
+
+  const cachedById = new Map(cachedMessages.map((message) => [message.id, message]));
+  const loadedIds = new Set(loadedMessages.map((message) => message.id));
+  return [
+    ...loadedMessages.map((message) => cachedById.get(message.id) ?? message),
+    ...cachedMessages.filter((message) => !loadedIds.has(message.id))
+  ];
+}
+
+function mergeLoadedSession(loadedSession: Session, cachedSession: Session | undefined, isRunning: boolean) {
+  if (!cachedSession || !isRunning) {
+    return loadedSession;
+  }
+
+  return {
+    ...loadedSession,
+    ...cachedSession,
+    updatedAt: Math.max(loadedSession.updatedAt, cachedSession.updatedAt)
+  };
+}
+
 export function ChatPage() {
   const initialState = useMemo<StoredState>(() => {
     const session = createDraftSession();
@@ -92,17 +118,21 @@ export function ChatPage() {
   const [searchText, setSearchText] = useState("");
   const [draft, setDraft] = useState("");
   const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
-  const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(null);
+  const [runningSessionIds, setRunningSessionIds] = useState<Set<string>>(() => new Set());
+  const [pendingApproval, setPendingApproval] = useState<PendingApprovalState | null>(null);
   const [availableModels, setAvailableModels] = useState<ConfiguredModel[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const pendingMessageDeltasRef = useRef<Record<string, PendingMessageDelta>>({});
+  const runningSessionIdsRef = useRef<Set<string>>(new Set());
   const streamFlushTimerRef = useRef<number | null>(null);
   const activeAssistantMessageIdRef = useRef<string | null>(null);
   const activeStreamSessionIdRef = useRef<string | null>(null);
 
   const activeSession = sessions.find((item) => item.id === activeSessionId) ?? sessions[0];
   const activeMessages = messages[activeSession.id] ?? [];
+  const isActiveSessionRunning = runningSessionIds.has(activeSession.id);
+  const activePendingApproval = pendingApproval?.conversationId === activeSession.id ? pendingApproval : null;
 
   const visibleSessions = useMemo(
     () => sessions.filter((session) => !archivedSessionIds.has(session.id)),
@@ -216,6 +246,17 @@ export function ChatPage() {
     setSessions((current) => current.map((session) => (session.id === sessionId ? updater(session) : session)));
   }
 
+  function setSessionRunning(sessionId: string, running: boolean) {
+    const next = new Set(runningSessionIdsRef.current);
+    if (running) {
+      next.add(sessionId);
+    } else {
+      next.delete(sessionId);
+    }
+    runningSessionIdsRef.current = next;
+    setRunningSessionIds(next);
+  }
+
   function createSession(nextView: ActiveView = "chat") {
     const draftSession = createDraftSession();
     setArchivedSessionIds((current) => {
@@ -243,19 +284,21 @@ export function ChatPage() {
   function selectSession(sessionId: string) {
     setActiveSessionId(sessionId);
     setActiveView("chat");
-    setPendingApproval(null);
     if (isDraftSessionId(sessionId)) {
       return;
     }
 
     void loadConversation(sessionId)
       .then((conversation) => {
+        const isRunning = runningSessionIdsRef.current.has(sessionId);
         setSessions((current) =>
-          current.map((session) => (session.id === sessionId ? conversation.session : session))
+          current.map((session) =>
+            session.id === sessionId ? mergeLoadedSession(conversation.session, session, isRunning) : session
+          )
         );
         setMessages((current) => ({
           ...current,
-          [sessionId]: conversation.messages
+          [sessionId]: isRunning ? mergeLoadedMessages(conversation.messages, current[sessionId]) : conversation.messages
         }));
       })
       .catch((error) => console.error(error));
@@ -383,6 +426,10 @@ export function ChatPage() {
       const nextSessionId = event.conversationId;
       activeAssistantMessageIdRef.current = event.assistantMessage.id;
       activeStreamSessionIdRef.current = nextSessionId;
+      if (nextSessionId !== sessionId) {
+        setSessionRunning(sessionId, false);
+      }
+      setSessionRunning(nextSessionId, true);
       setActiveSessionId(nextSessionId);
       setSessions((current) => {
         const withoutDraft = current.filter((session) => session.id !== sessionId);
@@ -475,6 +522,7 @@ export function ChatPage() {
       setPendingApproval({
         approvalId: event.approvalId,
         argumentsText: formatJson(event.argumentsText ? event.argumentsText : event.arguments),
+        conversationId: targetSessionId,
         impact: event.impact,
         name: event.name,
         purpose: event.purpose,
@@ -502,6 +550,7 @@ export function ChatPage() {
 
     if (event.type === "agent.run.completed") {
       flushQueuedMessageDeltas();
+      setSessionRunning(targetSessionId, false);
       setMessages((current) =>
         updateMessage(current, targetSessionId, assistantMessageId, (message) => ({
           ...message,
@@ -515,6 +564,7 @@ export function ChatPage() {
 
     if (event.type === "agent.run.failed") {
       flushQueuedMessageDeltas();
+      setSessionRunning(targetSessionId, false);
       setMessages((current) =>
         updateMessage(current, targetSessionId, assistantMessageId, (message) => ({
           ...message,
@@ -537,6 +587,7 @@ export function ChatPage() {
     const turnId = createId("turn");
     setDraft("");
     setActiveTurnId(turnId);
+    setSessionRunning(sessionId, true);
     activeAssistantMessageIdRef.current = null;
     activeStreamSessionIdRef.current = null;
     setPendingApproval(null);
@@ -577,7 +628,7 @@ export function ChatPage() {
   }
 
   async function stopCurrentTurn() {
-    if (!activeTurnId) {
+    if (!activeTurnId || !isActiveSessionRunning) {
       return;
     }
 
@@ -590,21 +641,22 @@ export function ChatPage() {
   }
 
   async function resolveApproval(decision: "allow" | "deny") {
-    if (!pendingApproval) {
+    if (!activePendingApproval) {
       return;
     }
 
-    const approvalId = pendingApproval.approvalId;
+    const approval = activePendingApproval;
+    const approvalId = approval.approvalId;
     setPendingApproval(null);
-    updateSession(activeSession.id, (session) => ({ ...session, status: "running", updatedAt: Date.now() }));
+    updateSession(approval.conversationId, (session) => ({ ...session, status: "running", updatedAt: Date.now() }));
     await sendApprovalDecision(approvalId, decision)
       .then((result) => {
         if (result.session) {
-          updateSession(activeSession.id, () => result.session as Session);
+          updateSession(approval.conversationId, () => result.session as Session);
         }
       })
       .catch((error) => {
-        updateSession(activeSession.id, (session) => ({ ...session, status: "error", updatedAt: Date.now() }));
+        updateSession(approval.conversationId, (session) => ({ ...session, status: "error", updatedAt: Date.now() }));
         console.error(error);
       });
   }
@@ -637,14 +689,14 @@ export function ChatPage() {
             <OverviewPage />
           ) : (
             <main className="main-panel">
-              <ConversationHeader isRunning={Boolean(activeTurnId)} title={activeSession.title} />
+              <ConversationHeader isRunning={isActiveSessionRunning} title={activeSession.title} />
               <MessageList
                 messages={activeMessages}
                 session={activeSession}
                 statusLabel={formatSessionStatus(activeSession.status)}
               />
               <ChatComposer
-                activeTurnId={activeTurnId}
+                activeTurnId={isActiveSessionRunning ? activeTurnId : null}
                 draft={draft}
                 models={availableModels}
                 onDraftChange={setDraft}
@@ -652,7 +704,7 @@ export function ChatPage() {
                 onResolveApproval={(decision) => void resolveApproval(decision)}
                 onSendMessage={() => void sendMessage()}
                 onStopTurn={() => void stopCurrentTurn()}
-                pendingApproval={pendingApproval}
+                pendingApproval={activePendingApproval}
                 selectedModelId={selectedModelId}
               />
             </main>

@@ -32,7 +32,11 @@ function AssistantMessageContent({ message }: { message: ChatMessage }) {
           {entry.toolGroups.length > 0 ? (
             <div className="tool-call-list inline-tool-call-list">
               {entry.toolGroups.map((tools) => (
-                <ToolCallGroup key={tools.map((tool) => tool.id).join("-")} tools={tools} />
+                <ToolCallGroup
+                  collapseWhenFollowedByText={entries.slice(index + 1).some((nextEntry) => nextEntry.content.trim())}
+                  key={tools.map((tool) => tool.id).join("-")}
+                  tools={tools}
+                />
               ))}
             </div>
           ) : null}
@@ -43,6 +47,8 @@ function AssistantMessageContent({ message }: { message: ChatMessage }) {
 }
 
 const MessageItem = memo(function MessageItem({ message }: { message: ChatMessage }) {
+  const isThinking = message.role === "assistant" && Boolean(message.streaming) && !message.content.trim();
+
   return (
     <article className={`message ${message.role}`}>
       <div className="message-body">
@@ -51,6 +57,12 @@ const MessageItem = memo(function MessageItem({ message }: { message: ChatMessag
         ) : (
           <p className="user-message-text">{message.content}</p>
         )}
+
+        {isThinking ? (
+          <div className="thinking-indicator" aria-live="polite" data-text="正在思考">
+            正在思考
+          </div>
+        ) : null}
 
         {message.reasoning ? (
           <details className="reasoning-block">
@@ -75,9 +87,27 @@ export function MessageList({ messages, session, statusLabel }: MessageListProps
   const scrollRef = useRef<HTMLElement | null>(null);
   const [isPinnedToBottom, setIsPinnedToBottom] = useState(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [scrollbarState, setScrollbarState] = useState({
+    thumbHeight: 100,
+    thumbTop: 0,
+    visible: false
+  });
 
   function isAtBottom(element: HTMLElement) {
     return element.scrollHeight - element.scrollTop - element.clientHeight <= 8;
+  }
+
+  function updateScrollbarState(element: HTMLElement) {
+    const scrollRange = element.scrollHeight - element.clientHeight;
+    const visible = scrollRange > 1;
+    if (!visible) {
+      setScrollbarState({ thumbHeight: 100, thumbTop: 0, visible: false });
+      return;
+    }
+
+    const thumbHeight = Math.max(8, (element.clientHeight / element.scrollHeight) * 100);
+    const thumbTop = Math.min(100 - thumbHeight, (element.scrollTop / scrollRange) * (100 - thumbHeight));
+    setScrollbarState({ thumbHeight, thumbTop, visible: true });
   }
 
   function scrollToBottom(behavior: ScrollBehavior = "smooth") {
@@ -101,17 +131,28 @@ export function MessageList({ messages, session, statusLabel }: MessageListProps
       const nextIsAtBottom = isAtBottom(element);
       setIsPinnedToBottom(nextIsAtBottom);
       setShowScrollToBottom(!nextIsAtBottom);
+      updateScrollbarState(element);
     };
 
     handleScroll();
     element.addEventListener("scroll", handleScroll, { passive: true });
-    return () => element.removeEventListener("scroll", handleScroll);
+    window.addEventListener("resize", handleScroll);
+    return () => {
+      element.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleScroll);
+    };
   }, [session.id]);
 
   useEffect(() => {
     if (isPinnedToBottom) {
       requestAnimationFrame(() => scrollToBottom("auto"));
     }
+    requestAnimationFrame(() => {
+      const element = scrollRef.current;
+      if (element) {
+        updateScrollbarState(element);
+      }
+    });
   }, [isPinnedToBottom, messages]);
 
   useEffect(() => {
@@ -143,6 +184,11 @@ export function MessageList({ messages, session, statusLabel }: MessageListProps
           ))}
         </div>
       </section>
+      {scrollbarState.visible ? (
+        <div className="chat-scrollbar" aria-hidden="true">
+          <i style={{ height: `${scrollbarState.thumbHeight}%`, top: `${scrollbarState.thumbTop}%` }} />
+        </div>
+      ) : null}
       {showScrollToBottom ? (
         <button
           className="scroll-bottom-button"

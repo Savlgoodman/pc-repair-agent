@@ -46,17 +46,28 @@ export function ToolCallCard({ tool }: { tool: ToolCallItem }) {
   );
 }
 
-export function ToolCallGroup({ tools }: { tools: ToolCallItem[] }) {
-  const hasIncompleteTools = tools.some((tool) => tool.status !== "complete");
-  const [open, setOpen] = useState(hasIncompleteTools);
+export function ToolCallGroup({
+  collapseWhenFollowedByText,
+  tools
+}: {
+  collapseWhenFollowedByText?: boolean;
+  tools: ToolCallItem[];
+}) {
+  const hasActiveTools = tools.some((tool) => tool.status === "running" || tool.status === "approval" || tool.status === "error");
+  const shouldAutoOpen = tools.length === 1 && tools[0]?.status !== "complete";
+  const [open, setOpen] = useState(hasActiveTools || shouldAutoOpen);
   const isAutoControlledRef = useRef(true);
 
   useEffect(() => {
     if (!isAutoControlledRef.current) {
       return;
     }
-    setOpen(hasIncompleteTools);
-  }, [hasIncompleteTools]);
+    if (collapseWhenFollowedByText) {
+      setOpen(false);
+      return;
+    }
+    setOpen(hasActiveTools || shouldAutoOpen);
+  }, [collapseWhenFollowedByText, hasActiveTools, shouldAutoOpen]);
 
   return (
     <details
