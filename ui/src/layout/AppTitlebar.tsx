@@ -16,7 +16,8 @@ async function handleWindowAction(action: "minimize" | "maximize" | "close") {
   } else if (action === "maximize") {
     await currentWindow.toggleMaximize();
   } else {
-    await currentWindow.close();
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("shutdown_app");
   }
 }
 

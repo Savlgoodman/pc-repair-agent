@@ -15,7 +15,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 
 import { formatTimeLabel } from "../lib/formatters";
-import { fetchProviderModels, loadAppAbout } from "../services/settingsStore";
+import { fetchProviderModels, loadAppAbout, saveDefaultModelProvider } from "../services/settingsStore";
 import type { AppAboutInfo, Session } from "../types";
 import "./SettingsPage.css";
 
@@ -79,6 +79,16 @@ function ModelProvidersSettings({ onProviderAdded, providers }: ModelProvidersSe
       const result = await fetchProviderModels({
         apiKey: trimmedApiKey,
         baseUrl: trimmedBaseUrl
+      });
+      const defaultModel = result.models[0];
+      if (!defaultModel) {
+        throw new Error("模型列表为空");
+      }
+      await saveDefaultModelProvider({
+        apiKey: trimmedApiKey,
+        baseUrl: trimmedBaseUrl,
+        model: defaultModel,
+        supportsReasoning
       });
       const provider: LocalModelProvider = {
         baseUrl: trimmedBaseUrl,

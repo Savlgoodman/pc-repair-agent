@@ -1,5 +1,5 @@
 import { ensureBackend } from "./agentClient";
-import type { AppAboutInfo, ModelProviderModelsResult } from "../types";
+import type { AppAboutInfo, ModelProviderModelsResult, SavedModelProviderResult } from "../types";
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const baseUrl = await ensureBackend();
@@ -32,6 +32,23 @@ export async function fetchProviderModels(options: {
     body: JSON.stringify({
       apiKey: options.apiKey,
       baseUrl: options.baseUrl
+    }),
+    method: "POST"
+  });
+}
+
+export async function saveDefaultModelProvider(options: {
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  supportsReasoning: boolean;
+}): Promise<SavedModelProviderResult> {
+  return requestJson<SavedModelProviderResult>("/api/settings/model-providers/default", {
+    body: JSON.stringify({
+      apiKey: options.apiKey,
+      baseUrl: options.baseUrl,
+      model: options.model,
+      supportsReasoning: options.supportsReasoning
     }),
     method: "POST"
   });

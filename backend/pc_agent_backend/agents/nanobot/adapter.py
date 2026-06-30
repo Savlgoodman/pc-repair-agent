@@ -94,6 +94,31 @@ class NanobotAgentAdapter:
                         "error": str(exc),
                     }
                 )
+            except FileNotFoundError as exc:
+                await output_queue.put(
+                    {
+                        "type": "agent.run.failed",
+                        "conversationId": request.conversation_id,
+                        "turnId": request.turn_id,
+                        "error": (
+                            "运行时资源缺失，请使用最新安装包重新安装。"
+                            if "nanobot" in str(exc) and "templates" in str(exc)
+                            else f"FileNotFoundError: {exc}"
+                        ),
+                    }
+                )
+            except ValueError as exc:
+                message = str(exc)
+                if "Environment variable" in message and "referenced in config" in message:
+                    message = "模型配置未完成，请先在设置页填写模型服务 URL 和 API Key。"
+                await output_queue.put(
+                    {
+                        "type": "agent.run.failed",
+                        "conversationId": request.conversation_id,
+                        "turnId": request.turn_id,
+                        "error": message,
+                    }
+                )
             except asyncio.CancelledError:
                 await output_queue.put(
                     {

@@ -76,6 +76,13 @@ export interface ModelProviderModelsResult {
   models: string[];
 }
 
+export interface SavedModelProviderResult {
+  configPath: string;
+  model: string;
+  modelPreset: string;
+  provider: string;
+}
+
 export interface AppAboutGitInfo {
   branch: string;
   commit: string;

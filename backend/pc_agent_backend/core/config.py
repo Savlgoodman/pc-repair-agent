@@ -15,7 +15,7 @@ NANOBOT_CONFIG_NAME = "nanobot_config.json"
 MINIMAL_NANOBOT_CONFIG: dict[str, Any] = {
     "providers": {
         "deepseek": {
-            "apiKey": "${DEEPSEEK_API_KEY}",
+            "apiKey": "",
             "apiBase": "https://api.deepseek.com",
         }
     },
@@ -91,6 +91,16 @@ def write_json_if_missing(path: Path, value: dict[str, Any]) -> None:
     )
 
 
+def normalize_json_encoding(path: Path) -> None:
+    if not path.exists():
+        return
+
+    content = path.read_text(encoding="utf-8-sig")
+    if content.startswith("\ufeff"):
+        content = content.removeprefix("\ufeff")
+    path.write_text(content, encoding="utf-8")
+
+
 def resolve_runtime_config(
     *,
     workspace: Path,
@@ -114,6 +124,7 @@ def resolve_runtime_config(
         else config_dir / NANOBOT_CONFIG_NAME
     )
     write_json_if_missing(nanobot_config_path, MINIMAL_NANOBOT_CONFIG)
+    normalize_json_encoding(nanobot_config_path)
 
     agent_adapter = (
         agent_adapter_override

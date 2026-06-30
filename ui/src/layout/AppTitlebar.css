@@ -71,6 +71,12 @@
   gap: 2px;
 }
 
+.titlebar button,
+.window-controls,
+.title-menu {
+  -webkit-app-region: no-drag;
+}
+
 .window-controls button {
   width: 34px;
   height: 26px;

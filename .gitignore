@@ -48,6 +48,10 @@ src-tauri/target/
 target/
 **/*.rs.bk
 
+# Tauri sidecar 打包产物
+src-tauri/binaries/*.exe
+src-tauri/binaries/*.pdb
+
 # Python
 __pycache__/
 *.py[cod]

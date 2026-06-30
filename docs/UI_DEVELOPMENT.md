@@ -211,6 +211,17 @@ Python backend 入口检查：
 uv run --project backend python -m pc_agent_backend.main --help
 ```
 
+## 日志位置
+
+Tauri 启动 backend 时会把控制台输出写入运行时 data 目录：
+
+```text
+开发环境：data/logs/backend-*.log
+安装环境：%USERPROFILE%\.repair-agent\logs\backend-*.log
+```
+
+关闭桌面窗口或退出应用时，Tauri 会停止本次由它启动的 backend 进程树。若端口上已有手动启动的 backend，Tauri 会复用该服务，但不会在退出时杀掉外部进程。
+
 ## 窗口配置
 
 窗口配置位于 `src-tauri/tauri.conf.json`：

@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import subprocess
 import tomllib
+import uuid
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -54,6 +56,26 @@ def _read_json_version(path: Path) -> str:
     except (OSError, json.JSONDecodeError):
         return "待检测"
     return str(payload.get("version") or "待检测")
+
+
+def _read_json_object(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _atomic_write_json(path: Path, value: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
+    temp_path.write_text(
+        json.dumps(value, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    temp_path.replace(path)
 
 
 def _read_pyproject_version(path: Path) -> str:
@@ -203,6 +225,87 @@ def _probe_models(base_url: str, api_key: str) -> dict[str, Any]:
     raise RuntimeError(last_error)
 
 
+def _sanitize_generated_env_placeholder(config: dict[str, Any]) -> None:
+    providers = config.get("providers")
+    if not isinstance(providers, dict):
+        return
+
+    deepseek = providers.get("deepseek")
+    if (
+        isinstance(deepseek, dict)
+        and deepseek.get("apiKey") == "${DEEPSEEK_API_KEY}"
+        and not os.environ.get("DEEPSEEK_API_KEY")
+    ):
+        deepseek["apiKey"] = ""
+
+
+def _save_default_model_provider(
+    *,
+    services: AppServices,
+    base_url: str,
+    api_key: str,
+    model: str,
+    supports_reasoning: bool,
+) -> dict[str, Any]:
+    config_path = services.runtime_config.nanobot_config_path
+    config = _read_json_object(config_path)
+    providers = config.setdefault("providers", {})
+    if not isinstance(providers, dict):
+        providers = {}
+        config["providers"] = providers
+
+    providers["custom"] = {
+        "apiKey": api_key,
+        "apiBase": base_url,
+    }
+    _sanitize_generated_env_placeholder(config)
+
+    preset_id = "pcAgentDefault"
+    model_preset: dict[str, Any] = {
+        "label": f"PC Agent 默认模型 ({model})",
+        "provider": "custom",
+        "model": model,
+        "maxTokens": 4096,
+        "contextWindowTokens": 65536,
+        "temperature": 0.1,
+    }
+    if supports_reasoning:
+        model_preset["reasoningEffort"] = "medium"
+
+    model_presets = config.setdefault("modelPresets", {})
+    if not isinstance(model_presets, dict):
+        model_presets = {}
+        config["modelPresets"] = model_presets
+    model_presets[preset_id] = model_preset
+
+    agents = config.setdefault("agents", {})
+    if not isinstance(agents, dict):
+        agents = {}
+        config["agents"] = agents
+    defaults = agents.setdefault("defaults", {})
+    if not isinstance(defaults, dict):
+        defaults = {}
+        agents["defaults"] = defaults
+    defaults["modelPreset"] = preset_id
+    defaults.setdefault("maxToolIterations", 20)
+    defaults.setdefault("failOnToolError", True)
+
+    tools = config.setdefault("tools", {})
+    if isinstance(tools, dict):
+        tools.setdefault("restrictToWorkspace", True)
+        tools.setdefault("exec", {"enable": True, "timeout": 30})
+        tools.setdefault("file", {"enable": True})
+        tools.setdefault("web", {"search": {"enable": False}, "fetch": {"enable": False}})
+
+    _atomic_write_json(config_path, config)
+    return {
+        "configPath": str(config_path),
+        "model": model,
+        "modelPreset": preset_id,
+        "provider": "custom",
+    }
+
+
 @router.get("/settings/about")
 async def settings_about(services: AppServices = Depends(get_services)) -> dict[str, Any]:
     return await asyncio.to_thread(_collect_about_info, services)
@@ -221,4 +324,28 @@ async def probe_model_provider_models(payload: dict[str, Any]) -> JSONResponse:
     except RuntimeError as error:
         return JSONResponse({"error": str(error)}, status_code=502)
 
+    return JSONResponse(result)
+
+
+@router.post("/settings/model-providers/default")
+async def save_default_model_provider(
+    payload: dict[str, Any],
+    services: AppServices = Depends(get_services),
+) -> JSONResponse:
+    base_url = str(payload.get("baseUrl") or "").strip()
+    api_key = str(payload.get("apiKey") or "").strip()
+    model = str(payload.get("model") or "").strip()
+    supports_reasoning = bool(payload.get("supportsReasoning"))
+
+    if not base_url or not api_key or not model:
+        return JSONResponse({"error": "baseUrl, apiKey and model are required"}, status_code=400)
+
+    result = await asyncio.to_thread(
+        _save_default_model_provider,
+        services=services,
+        base_url=base_url,
+        api_key=api_key,
+        model=model,
+        supports_reasoning=supports_reasoning,
+    )
     return JSONResponse(result)
