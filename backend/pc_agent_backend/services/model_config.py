@@ -731,7 +731,12 @@ class ModelConfigStore:
     def _public_provider(self, provider: dict[str, Any]) -> dict[str, Any]:
         api_key = str(provider.get("apiKey") or "")
         return {
-            **{key: value for key, value in provider.items() if key != "apiKey"},
+            **{
+                key: value
+                for key, value in provider.items()
+                if key not in {"apiKey", "models", "nanobotProviderKey"}
+            },
+            "models": [self._public_model(provider, model) for model in provider.get("models", [])],
             "hasApiKey": bool(api_key),
             "apiKeyPreview": _preview_secret(api_key),
         }

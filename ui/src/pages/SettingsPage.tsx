@@ -5,10 +5,14 @@ import {
   ArrowLeft,
   Bot,
   Check,
+  ChevronDown,
+  ChevronRight,
   Database,
+  Pencil,
   Info,
   RefreshCw,
   RotateCcw,
+  SlidersHorizontal,
   Trash2,
   X
 } from "lucide-react";
@@ -23,9 +27,19 @@ import {
   loadAppAbout,
   loadModelSettings,
   refreshModelProviderModels,
-  updateDefaultModel
+  updateConfiguredModel,
+  updateDefaultModel,
+  updateModelProvider
 } from "../services/settingsStore";
-import type { AppAboutInfo, ConfiguredModelProvider, ModelProtocol, ModelSettingsState, Session } from "../types";
+import type {
+  AppAboutInfo,
+  ConfiguredModel,
+  ConfiguredModelProvider,
+  ModelCapabilities,
+  ModelProtocol,
+  ModelSettingsState,
+  Session
+} from "../types";
 import "./SettingsPage.css";
 
 type SettingsSection = "providers" | "archive" | "about";
@@ -57,6 +71,45 @@ const protocolOptions: Array<{ label: string; value: ModelProtocol }> = [
   { label: "OpenAI Responses", value: "openai_responses" }
 ];
 
+interface ProviderEditDraft {
+  apiKey: string;
+  baseUrl: string;
+  enabled: boolean;
+  id: string;
+  name: string;
+  protocol: ModelProtocol;
+}
+
+interface ModelEditDraft {
+  capabilities: ModelCapabilities;
+  contextWindowTokens: string;
+  enabled: boolean;
+  id: string;
+  label: string;
+  maxOutputTokens: string;
+  protocol: ModelProtocol;
+  reasoningEffort: string;
+  temperature: string;
+}
+
+function protocolLabel(value: ModelProtocol) {
+  return protocolOptions.find((item) => item.value === value)?.label ?? value;
+}
+
+function modelEditDraft(model: ConfiguredModel): ModelEditDraft {
+  return {
+    capabilities: { ...model.capabilities },
+    contextWindowTokens: String(model.limits.contextWindowTokens),
+    enabled: model.enabled,
+    id: model.id,
+    label: model.label,
+    maxOutputTokens: String(model.limits.maxOutputTokens),
+    protocol: model.protocol,
+    reasoningEffort: model.generation.reasoningEffort,
+    temperature: String(model.generation.temperature)
+  };
+}
+
 function ModelProvidersSettings() {
   const [settings, setSettings] = useState<ModelSettingsState | null>(null);
   const [providerName, setProviderName] = useState("");
@@ -68,6 +121,9 @@ function ModelProvidersSettings() {
   const [isLoading, setIsLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [selectedModels, setSelectedModels] = useState<Record<string, Set<string>>>({});
+  const [collapsedProviders, setCollapsedProviders] = useState<Record<string, boolean>>({});
+  const [providerDraft, setProviderDraft] = useState<ProviderEditDraft | null>(null);
+  const [modelDraft, setModelDraft] = useState<ModelEditDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function refreshSettings() {
@@ -138,6 +194,51 @@ function ModelProvidersSettings() {
     }
   }
 
+  function editProvider(provider: ConfiguredModelProvider) {
+    setProviderDraft({
+      apiKey: "",
+      baseUrl: provider.baseUrl,
+      enabled: provider.enabled,
+      id: provider.id,
+      name: provider.name,
+      protocol: provider.protocol
+    });
+    setError(null);
+  }
+
+  async function saveProviderDraft() {
+    if (!providerDraft) {
+      return;
+    }
+    const trimmedName = providerDraft.name.trim();
+    const trimmedBaseUrl = providerDraft.baseUrl.trim();
+    if (!trimmedName || !trimmedBaseUrl) {
+      setError("请填写供应商名称和 URL");
+      return;
+    }
+
+    setBusyId(providerDraft.id);
+    setError(null);
+    try {
+      const patch: Parameters<typeof updateModelProvider>[1] = {
+        baseUrl: trimmedBaseUrl,
+        enabled: providerDraft.enabled,
+        name: trimmedName,
+        protocol: providerDraft.protocol
+      };
+      if (providerDraft.apiKey.trim()) {
+        patch.apiKey = providerDraft.apiKey.trim();
+      }
+      await updateModelProvider(providerDraft.id, patch);
+      setSettings(await loadModelSettings());
+      setProviderDraft(null);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : String(requestError));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function addSelectedModels(provider: ConfiguredModelProvider) {
     const selected = Array.from(selectedModels[provider.id] ?? []);
     if (selected.length === 0) {
@@ -182,6 +283,62 @@ function ModelProvidersSettings() {
     setError(null);
     try {
       setSettings(await deleteConfiguredModel(modelId));
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : String(requestError));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function editModel(model: ConfiguredModel) {
+    setModelDraft(modelEditDraft(model));
+    setError(null);
+  }
+
+  async function saveModelDraft() {
+    if (!modelDraft) {
+      return;
+    }
+    const label = modelDraft.label.trim();
+    const contextWindowTokens = Number.parseInt(modelDraft.contextWindowTokens, 10);
+    const maxOutputTokens = Number.parseInt(modelDraft.maxOutputTokens, 10);
+    const temperature = Number.parseFloat(modelDraft.temperature);
+    if (!label) {
+      setError("请填写模型显示名称");
+      return;
+    }
+    if (!Number.isFinite(contextWindowTokens) || contextWindowTokens <= 0) {
+      setError("上下文长度必须是大于 0 的整数");
+      return;
+    }
+    if (!Number.isFinite(maxOutputTokens) || maxOutputTokens <= 0) {
+      setError("最大输出长度必须是大于 0 的整数");
+      return;
+    }
+    if (!Number.isFinite(temperature)) {
+      setError("Temperature 必须是有效数字");
+      return;
+    }
+
+    setBusyId(modelDraft.id);
+    setError(null);
+    try {
+      await updateConfiguredModel(modelDraft.id, {
+        capabilities: modelDraft.capabilities,
+        enabled: modelDraft.enabled,
+        generation: {
+          reasoningEffort: modelDraft.reasoningEffort.trim() || "none",
+          temperature
+        },
+        label,
+        limits: {
+          contextWindowTokens,
+          maxOutputTokens
+        },
+        protocol: modelDraft.protocol
+      });
+      setSettings(await loadModelSettings());
+      setModelDraft(null);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : String(requestError));
     } finally {
@@ -239,6 +396,27 @@ function ModelProvidersSettings() {
       }
       return { ...current, [providerId]: nextSet };
     });
+  }
+
+  function toggleProviderCollapse(providerId: string) {
+    setCollapsedProviders((current) => ({
+      ...current,
+      [providerId]: !(current[providerId] ?? false)
+    }));
+  }
+
+  function updateModelCapability(name: keyof ModelCapabilities, checked: boolean) {
+    setModelDraft((current) =>
+      current
+        ? {
+            ...current,
+            capabilities: {
+              ...current.capabilities,
+              [name]: checked
+            }
+          }
+        : current
+    );
   }
 
   const providers = settings?.providers ?? [];
@@ -351,97 +529,339 @@ function ModelProvidersSettings() {
         {providers.length === 0 ? (
           <div className="settings-empty">暂无模型提供商</div>
         ) : (
-          providers.map((provider) => (
-            <article className="settings-provider-row" key={provider.id}>
-              <div className="settings-provider-main">
-                <div>
-                  <strong>{provider.name}</strong>
-                  <span>{provider.baseUrl}</span>
-                </div>
-                <div className="settings-provider-flags">
-                  <span className={provider.hasApiKey ? "enabled" : ""}>
-                    {provider.hasApiKey ? <Check size={13} /> : <X size={13} />}
-                    密钥
-                  </span>
-                  <span className="enabled">
-                    {provider.protocol}
-                  </span>
-                </div>
-              </div>
-              <div className="settings-row-actions provider-actions">
-                <button
-                  className="settings-secondary-button"
-                  disabled={busyId === provider.id}
-                  onClick={() => void refreshProvider(provider.id)}
-                  type="button"
-                >
-                  <RefreshCw className={busyId === provider.id ? "spin-icon" : ""} size={14} />
-                  <span>刷新模型</span>
-                </button>
-                <button className="settings-danger-button" disabled={busyId === provider.id} onClick={() => void deleteProvider(provider)} type="button">
-                  <Trash2 size={14} />
-                  <span>删除供应商</span>
-                </button>
-              </div>
-              <div className="settings-model-cloud" aria-label="发现的模型">
-                {provider.discoveredModels.length === 0 ? (
-                  <span>暂无发现模型</span>
-                ) : (
-                  provider.discoveredModels.slice(0, 24).map((model) => (
-                    <label className="settings-model-choice" key={model.id}>
-                      <input
-                        checked={selectedModels[provider.id]?.has(model.id) ?? false}
-                        onChange={(event) => toggleModel(provider.id, model.id, event.target.checked)}
-                        type="checkbox"
-                      />
-                      <span>{model.label}</span>
-                    </label>
-                  ))
-                )}
-                {provider.discoveredModels.length > 24 ? <span>共 {provider.discoveredModels.length} 个</span> : null}
-              </div>
-              {provider.discoveredModels.length > 0 ? (
-                <button
-                  className="settings-secondary-button add-models-button"
-                  disabled={busyId === provider.id}
-                  onClick={() => void addSelectedModels(provider)}
-                  type="button"
-                >
-                  <Check size={14} />
-                  <span>添加选中模型</span>
-                </button>
-              ) : null}
-              {provider.models.length > 0 ? (
-                <div className="settings-configured-models">
-                  {provider.models.map((model) => (
-                    <div className="settings-configured-model" key={model.id}>
-                      <div>
-                        <strong>{model.label}</strong>
-                        <span>{model.model} / {model.limits.contextWindowTokens.toLocaleString()} tokens</span>
-                      </div>
-                      <div className="settings-provider-flags">
-                        <span className={model.capabilities.reasoning ? "enabled" : ""}>思考</span>
-                        <span className={model.capabilities.vision ? "enabled" : ""}>多模态</span>
-                        <span>{model.protocol}</span>
-                      </div>
-                      <div className="settings-row-actions">
-                        <button className="settings-secondary-button" onClick={() => void setDefaultModel(model.id)} type="button">
-                          <Check size={14} />
-                          <span>{settings?.effectiveDefaultModelId === model.id ? "默认" : "设为默认"}</span>
-                        </button>
-                        <button className="settings-danger-button" disabled={busyId === model.id} onClick={() => void deleteModel(model.id)} type="button">
-                          <Trash2 size={14} />
-                          <span>删除</span>
-                        </button>
-                      </div>
+          providers.map((provider) => {
+            const isCollapsed = collapsedProviders[provider.id] ?? false;
+            return (
+              <article className={`settings-provider-row ${isCollapsed ? "collapsed" : ""}`} key={provider.id}>
+                <div className="settings-provider-header">
+                  <button
+                    aria-controls={`provider-body-${provider.id}`}
+                    aria-expanded={!isCollapsed}
+                    className="settings-icon-button"
+                    onClick={() => toggleProviderCollapse(provider.id)}
+                    title={isCollapsed ? "展开供应商" : "折叠供应商"}
+                    type="button"
+                  >
+                    {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                  </button>
+                  <div className="settings-provider-main">
+                    <div>
+                      <strong>{provider.name}</strong>
+                      <span>{provider.baseUrl}</span>
                     </div>
-                  ))}
+                    <div className="settings-provider-flags">
+                      <span className={provider.enabled ? "enabled" : ""}>{provider.enabled ? "启用" : "停用"}</span>
+                      <span className={provider.hasApiKey ? "enabled" : ""}>
+                        {provider.hasApiKey ? <Check size={13} /> : <X size={13} />}
+                        密钥
+                      </span>
+                      <span className="enabled">{protocolLabel(provider.protocol)}</span>
+                    </div>
+                  </div>
+                  <div className="settings-row-actions provider-actions">
+                    <button className="settings-secondary-button" onClick={() => editProvider(provider)} type="button">
+                      <Pencil size={14} />
+                      <span>编辑</span>
+                    </button>
+                    <button
+                      className="settings-secondary-button"
+                      disabled={busyId === provider.id}
+                      onClick={() => void refreshProvider(provider.id)}
+                      type="button"
+                    >
+                      <RefreshCw className={busyId === provider.id ? "spin-icon" : ""} size={14} />
+                      <span>刷新模型</span>
+                    </button>
+                    <button className="settings-danger-button" disabled={busyId === provider.id} onClick={() => void deleteProvider(provider)} type="button">
+                      <Trash2 size={14} />
+                      <span>删除供应商</span>
+                    </button>
+                  </div>
                 </div>
-              ) : null}
-            </article>
-          ))
+
+                {!isCollapsed ? (
+                  <div className="settings-provider-body" id={`provider-body-${provider.id}`}>
+                    <div className="settings-model-cloud" aria-label="发现的模型">
+                      {provider.discoveredModels.length === 0 ? (
+                        <span>暂无发现模型</span>
+                      ) : (
+                        provider.discoveredModels.slice(0, 24).map((model) => (
+                          <label className="settings-model-choice" key={model.id}>
+                            <input
+                              checked={selectedModels[provider.id]?.has(model.id) ?? false}
+                              onChange={(event) => toggleModel(provider.id, model.id, event.target.checked)}
+                              type="checkbox"
+                            />
+                            <span>{model.label}</span>
+                          </label>
+                        ))
+                      )}
+                      {provider.discoveredModels.length > 24 ? <span>共 {provider.discoveredModels.length} 个</span> : null}
+                    </div>
+                    {provider.discoveredModels.length > 0 ? (
+                      <button
+                        className="settings-secondary-button add-models-button"
+                        disabled={busyId === provider.id}
+                        onClick={() => void addSelectedModels(provider)}
+                        type="button"
+                      >
+                        <Check size={14} />
+                        <span>添加选中模型</span>
+                      </button>
+                    ) : null}
+                    {provider.models.length > 0 ? (
+                      <div className="settings-configured-models">
+                        {provider.models.map((model) => (
+                          <div className="settings-configured-model" key={model.id}>
+                            <div>
+                              <strong>{model.label}</strong>
+                              <span>
+                                {model.model} / {model.limits.contextWindowTokens.toLocaleString()} tokens / 输出{" "}
+                                {model.limits.maxOutputTokens.toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="settings-provider-flags">
+                              <span className={model.enabled ? "enabled" : ""}>{model.enabled ? "启用" : "停用"}</span>
+                              <span className={model.capabilities.reasoning ? "enabled" : ""}>思考</span>
+                              <span className={model.capabilities.vision ? "enabled" : ""}>多模态</span>
+                              <span>{protocolLabel(model.protocol)}</span>
+                            </div>
+                            <div className="settings-row-actions">
+                              <button className="settings-secondary-button" onClick={() => editModel(model)} type="button">
+                                <SlidersHorizontal size={14} />
+                                <span>参数</span>
+                              </button>
+                              <button className="settings-secondary-button" onClick={() => void setDefaultModel(model.id)} type="button">
+                                <Check size={14} />
+                                <span>{settings?.effectiveDefaultModelId === model.id ? "默认" : "设为默认"}</span>
+                              </button>
+                              <button className="settings-danger-button" disabled={busyId === model.id} onClick={() => void deleteModel(model.id)} type="button">
+                                <Trash2 size={14} />
+                                <span>删除</span>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </article>
+            );
+          })
         )}
       </div>
+
+      {providerDraft ? (
+        <div className="settings-modal-backdrop" role="presentation">
+          <div aria-modal="true" className="settings-modal" role="dialog">
+            <div className="settings-modal-header">
+              <div>
+                <span className="eyebrow">供应商</span>
+                <h2>编辑供应商</h2>
+              </div>
+              <button className="settings-icon-button" onClick={() => setProviderDraft(null)} title="关闭" type="button">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="settings-form-grid">
+              <label className="settings-field">
+                <span>名称</span>
+                <input
+                  autoComplete="off"
+                  onChange={(event) => setProviderDraft({ ...providerDraft, name: event.target.value })}
+                  value={providerDraft.name}
+                />
+              </label>
+              <label className="settings-field">
+                <span>协议</span>
+                <select
+                  onChange={(event) => setProviderDraft({ ...providerDraft, protocol: event.target.value as ModelProtocol })}
+                  value={providerDraft.protocol}
+                >
+                  {protocolOptions.map((item) => (
+                    <option key={item.value} value={item.value}>{item.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="settings-field settings-field-wide">
+                <span>URL</span>
+                <input
+                  autoComplete="off"
+                  onChange={(event) => setProviderDraft({ ...providerDraft, baseUrl: event.target.value })}
+                  value={providerDraft.baseUrl}
+                />
+              </label>
+              <label className="settings-field settings-field-wide">
+                <span>API Key</span>
+                <input
+                  autoComplete="off"
+                  onChange={(event) => setProviderDraft({ ...providerDraft, apiKey: event.target.value })}
+                  placeholder="留空则保持原密钥"
+                  type="password"
+                  value={providerDraft.apiKey}
+                />
+              </label>
+            </div>
+            <div className="settings-toggle-row modal-toggle-row">
+              <label className="settings-check">
+                <input
+                  checked={providerDraft.enabled}
+                  onChange={(event) => setProviderDraft({ ...providerDraft, enabled: event.target.checked })}
+                  type="checkbox"
+                />
+                <span>启用供应商</span>
+              </label>
+            </div>
+            {error ? <div className="settings-inline-error">{error}</div> : null}
+            <div className="settings-modal-actions">
+              <button className="settings-secondary-button" onClick={() => setProviderDraft(null)} type="button">
+                <span>取消</span>
+              </button>
+              <button className="settings-primary-button" disabled={busyId === providerDraft.id} onClick={() => void saveProviderDraft()} type="button">
+                <Check size={14} />
+                <span>保存</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {modelDraft ? (
+        <div className="settings-modal-backdrop" role="presentation">
+          <div aria-modal="true" className="settings-modal wide" role="dialog">
+            <div className="settings-modal-header">
+              <div>
+                <span className="eyebrow">模型</span>
+                <h2>编辑模型参数</h2>
+              </div>
+              <button className="settings-icon-button" onClick={() => setModelDraft(null)} title="关闭" type="button">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="settings-form-grid">
+              <label className="settings-field">
+                <span>显示名称</span>
+                <input
+                  autoComplete="off"
+                  onChange={(event) => setModelDraft({ ...modelDraft, label: event.target.value })}
+                  value={modelDraft.label}
+                />
+              </label>
+              <label className="settings-field">
+                <span>协议</span>
+                <select
+                  onChange={(event) => setModelDraft({ ...modelDraft, protocol: event.target.value as ModelProtocol })}
+                  value={modelDraft.protocol}
+                >
+                  {protocolOptions.map((item) => (
+                    <option key={item.value} value={item.value}>{item.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="settings-field">
+                <span>上下文长度</span>
+                <input
+                  min={1}
+                  onChange={(event) => setModelDraft({ ...modelDraft, contextWindowTokens: event.target.value })}
+                  type="number"
+                  value={modelDraft.contextWindowTokens}
+                />
+              </label>
+              <label className="settings-field">
+                <span>最大输出长度</span>
+                <input
+                  min={1}
+                  onChange={(event) => setModelDraft({ ...modelDraft, maxOutputTokens: event.target.value })}
+                  type="number"
+                  value={modelDraft.maxOutputTokens}
+                />
+              </label>
+              <label className="settings-field">
+                <span>Temperature</span>
+                <input
+                  onChange={(event) => setModelDraft({ ...modelDraft, temperature: event.target.value })}
+                  step="0.1"
+                  type="number"
+                  value={modelDraft.temperature}
+                />
+              </label>
+              <label className="settings-field">
+                <span>Reasoning Effort</span>
+                <select
+                  onChange={(event) => setModelDraft({ ...modelDraft, reasoningEffort: event.target.value })}
+                  value={modelDraft.reasoningEffort}
+                >
+                  <option value="none">none</option>
+                  <option value="low">low</option>
+                  <option value="medium">medium</option>
+                  <option value="high">high</option>
+                </select>
+              </label>
+            </div>
+            <div className="settings-toggle-row modal-toggle-row wrap">
+              <label className="settings-check">
+                <input
+                  checked={modelDraft.enabled}
+                  onChange={(event) => setModelDraft({ ...modelDraft, enabled: event.target.checked })}
+                  type="checkbox"
+                />
+                <span>启用模型</span>
+              </label>
+              <label className="settings-check">
+                <input
+                  checked={modelDraft.capabilities.text}
+                  onChange={(event) => updateModelCapability("text", event.target.checked)}
+                  type="checkbox"
+                />
+                <span>文本</span>
+              </label>
+              <label className="settings-check">
+                <input
+                  checked={modelDraft.capabilities.tools}
+                  onChange={(event) => updateModelCapability("tools", event.target.checked)}
+                  type="checkbox"
+                />
+                <span>工具</span>
+              </label>
+              <label className="settings-check">
+                <input
+                  checked={modelDraft.capabilities.reasoning}
+                  onChange={(event) => updateModelCapability("reasoning", event.target.checked)}
+                  type="checkbox"
+                />
+                <span>思考</span>
+              </label>
+              <label className="settings-check">
+                <input
+                  checked={modelDraft.capabilities.vision}
+                  onChange={(event) => updateModelCapability("vision", event.target.checked)}
+                  type="checkbox"
+                />
+                <span>多模态</span>
+              </label>
+              <label className="settings-check">
+                <input
+                  checked={modelDraft.capabilities.audio}
+                  onChange={(event) => updateModelCapability("audio", event.target.checked)}
+                  type="checkbox"
+                />
+                <span>音频</span>
+              </label>
+            </div>
+            {error ? <div className="settings-inline-error">{error}</div> : null}
+            <div className="settings-modal-actions">
+              <button className="settings-secondary-button" onClick={() => setModelDraft(null)} type="button">
+                <span>取消</span>
+              </button>
+              <button className="settings-primary-button" disabled={busyId === modelDraft.id} onClick={() => void saveModelDraft()} type="button">
+                <Check size={14} />
+                <span>保存</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

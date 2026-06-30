@@ -65,6 +65,16 @@ export async function createModelProvider(options: {
   });
 }
 
+export async function updateModelProvider(
+  providerId: string,
+  patch: Partial<Pick<ConfiguredModelProvider, "baseUrl" | "enabled" | "name" | "protocol">> & { apiKey?: string }
+): Promise<ConfiguredModelProvider> {
+  return requestJson<ConfiguredModelProvider>(`/api/settings/model-providers/${providerId}`, {
+    body: JSON.stringify(patch),
+    method: "PATCH"
+  });
+}
+
 export async function refreshModelProviderModels(providerId: string): Promise<ConfiguredModelProvider> {
   return requestJson<ConfiguredModelProvider>(`/api/settings/model-providers/${providerId}/models/refresh`, {
     method: "POST"
