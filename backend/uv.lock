@@ -1622,7 +1622,7 @@ wheels = [
 
 [[package]]
 name = "pc-agent-backend"
-version = "0.1.2"
+version = "0.1.3"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },

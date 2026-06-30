@@ -1,6 +1,6 @@
 [package]
 name = "pc-repair-agent"
-version = "0.1.2"
+version = "0.1.3"
 description = "PC Repair Agent desktop shell"
 authors = ["PC Repair Agent"]
 edition = "2021"
