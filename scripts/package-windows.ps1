@@ -30,9 +30,9 @@ if ($NoProxy) {
 $env:PYTHONUTF8 = "1"
 New-Item -ItemType Directory -Force -Path $backendBinaryDir | Out-Null
 
-$versionArgs = @()
+$versionArgs = @{}
 if (-not [string]::IsNullOrWhiteSpace($Version)) {
-  $versionArgs += $Version
+  $versionArgs["Version"] = $Version
 }
 & (Join-Path $repoRoot "scripts\set-version.ps1") @versionArgs
 
