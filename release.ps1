@@ -14,9 +14,9 @@ $distDir = Join-Path $repoRoot "dist"
 $distFullPath = [System.IO.Path]::GetFullPath($distDir)
 $repoFullPath = [System.IO.Path]::GetFullPath($repoRoot)
 
-$versionArgs = @()
+$versionArgs = @{}
 if (-not [string]::IsNullOrWhiteSpace($Version)) {
-  $versionArgs += $Version
+  $versionArgs["Version"] = $Version
 }
 & (Join-Path $repoRoot "scripts\set-version.ps1") @versionArgs
 
@@ -34,20 +34,20 @@ if (Test-Path -LiteralPath $distFullPath) {
 }
 
 if (-not $SkipBuild) {
-  $packageArgs = @()
+  $packageArgs = @{}
   if ($NoProxy) {
-    $packageArgs += "-NoProxy"
+    $packageArgs["NoProxy"] = $true
   } else {
-    $packageArgs += @("-Proxy", $Proxy)
+    $packageArgs["Proxy"] = $Proxy
   }
   if ($SkipDependencySync) {
-    $packageArgs += "-SkipDependencySync"
+    $packageArgs["SkipDependencySync"] = $true
   }
   if ($SkipBackendBuild) {
-    $packageArgs += "-SkipBackendBuild"
+    $packageArgs["SkipBackendBuild"] = $true
   }
   if (-not [string]::IsNullOrWhiteSpace($Version)) {
-    $packageArgs += @("-Version", $Version)
+    $packageArgs["Version"] = $Version
   }
 
   & (Join-Path $repoRoot "scripts\package-windows.ps1") @packageArgs
