@@ -136,6 +136,8 @@ npm run tauri:dev:win
 5. Tauri 自动启动 Vite，再启动桌面窗口。
 6. UI 首次发送消息时，Tauri 会通过 `ensure_backend` 启动 Python backend。
 
+开发态默认不声明 Tauri `externalBin`，因此不需要先生成 `src-tauri/binaries/pc-agent-backend-x86_64-pc-windows-msvc.exe`。打包时由 `src-tauri/tauri.release.conf.json` 注入 backend sidecar 配置。
+
 如需指定其他代理：
 
 ```powershell
@@ -328,6 +330,16 @@ Tauri Windows 构建需要 `src-tauri/icons/icon.ico`。如图标文件缺失，
 ```powershell
 npm exec --prefix ui -- tauri icon .\src-tauri\icons\app-icon.svg --output .\src-tauri\icons
 ```
+
+### 开发模式提示 backend sidecar 缺失
+
+开发模式不应依赖 PyInstaller 生成的 backend sidecar。如果仍看到类似以下错误：
+
+```text
+resource path `binaries\pc-agent-backend-x86_64-pc-windows-msvc.exe` doesn't exist
+```
+
+请确认启动命令使用的是默认开发配置，例如 `npm run tauri:dev:win` 或 `npm run tauri:dev`，不要在开发命令里额外传入 `src-tauri/tauri.release.conf.json`。
 
 ### 网络下载依赖失败
 
