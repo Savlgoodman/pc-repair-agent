@@ -156,7 +156,8 @@
   font-size: 12px;
 }
 
-.settings-field input {
+.settings-field input,
+.settings-field select {
   height: 38px;
   min-width: 0;
   border: 1px solid #ddd9d4;
@@ -167,7 +168,8 @@
   outline: 0;
 }
 
-.settings-field input:focus {
+.settings-field input:focus,
+.settings-field select:focus {
   border-color: #aeb8c3;
   background: #fff;
 }
@@ -333,6 +335,73 @@
   margin-top: 12px;
 }
 
+.settings-default-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 12px;
+}
+
+.provider-actions {
+  margin-top: 12px;
+}
+
+.add-models-button {
+  margin-top: 10px;
+}
+
+.settings-model-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  background: #f1f1f0;
+  padding: 4px 8px;
+  color: #4e535a;
+  font-size: 12px;
+}
+
+.settings-model-choice input {
+  width: 13px;
+  height: 13px;
+}
+
+.settings-configured-models {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #eeebe7;
+}
+
+.settings-configured-model {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #eeebe7;
+  border-radius: 8px;
+  background: #fbfbfa;
+  padding: 10px;
+}
+
+.settings-configured-model > div:first-child {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-configured-model strong {
+  color: #252a31;
+  font-weight: 650;
+}
+
+.settings-configured-model span {
+  color: #747980;
+  font-size: 12px;
+}
+
 .settings-archive-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
@@ -450,6 +519,7 @@
   }
 
   .settings-form-grid,
+  .settings-default-row,
   .settings-about-grid {
     grid-template-columns: 1fr;
   }
@@ -483,6 +553,7 @@
   }
 
   .settings-toggle-row,
+  .settings-configured-model,
   .settings-provider-main,
   .settings-row-actions {
     align-items: stretch;

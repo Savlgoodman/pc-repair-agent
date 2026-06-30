@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pc_agent_backend.api.dependencies import get_services
 from pc_agent_backend.core.json_utils import encode_ndjson_event
 from pc_agent_backend.schemas.agent import AgentRunRequest
+from pc_agent_backend.services.model_config import ModelConfigError
 from pc_agent_backend.services.runtime import AppServices
 
 
@@ -36,11 +37,50 @@ async def stream_turn(
         conversation_id = services.conversation_recorder.create_conversation_id()
     turn_id = str(body.get("turnId") or f"turn-{uuid.uuid4().hex}")
     prompt = str(body.get("input") or "").strip()
+    requested_model_id = str(body.get("modelId") or "").strip() or None
+    try:
+        if requested_model_id:
+            resolved_model = services.model_config_store.resolve_model(requested_model_id)
+            if resolved_model is None:
+                raise ModelConfigError("所选模型不存在或已被禁用")
+        else:
+            resolved_model = services.model_config_store.effective_default_model()
+    except ModelConfigError as error:
+        async def error_stream():
+            yield encode_ndjson_event(
+                {
+                    "type": "agent.run.failed",
+                    "conversationId": conversation_id,
+                    "turnId": turn_id,
+                    "error": str(error),
+                }
+            )
+
+        return StreamingResponse(error_stream(), media_type="application/x-ndjson; charset=utf-8")
+
+    model_metadata = (
+        {
+            "modelId": resolved_model.model_id,
+            "modelPresetId": resolved_model.model_preset_id,
+            "providerId": resolved_model.provider_id,
+            "providerName": resolved_model.provider_name,
+            "model": resolved_model.model,
+            "label": resolved_model.label,
+            "protocol": resolved_model.protocol,
+            "contextWindowTokens": resolved_model.context_window_tokens,
+            "maxOutputTokens": resolved_model.max_output_tokens,
+        }
+        if resolved_model is not None
+        else {}
+    )
     run_request = AgentRunRequest(
         conversation_id=conversation_id,
         turn_id=turn_id,
         prompt=prompt,
         workspace=services.workspace,
+        model_id=resolved_model.model_id if resolved_model else None,
+        model_preset_id=resolved_model.model_preset_id if resolved_model else None,
+        model_metadata=model_metadata,
     )
 
     async def event_stream():
@@ -49,7 +89,10 @@ async def stream_turn(
             turn_record = services.conversation_recorder.start_turn(
                 conversation_id=conversation_id,
                 prompt=prompt,
+                model_metadata=model_metadata,
             )
+            if resolved_model:
+                services.model_config_store.mark_last_used(resolved_model.model_id)
             assistant_message_id = str(turn_record.assistant_message["id"])
             yield encode_ndjson_event(
                 {

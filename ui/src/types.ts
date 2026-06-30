@@ -76,11 +76,79 @@ export interface ModelProviderModelsResult {
   models: string[];
 }
 
+export type ModelProtocol = "openai" | "anthropic" | "openai_responses";
+export type DefaultModelStrategy = "last_used" | "fixed";
+
+export interface ModelCapabilities {
+  audio: boolean;
+  reasoning: boolean;
+  text: boolean;
+  tools: boolean;
+  vision: boolean;
+}
+
+export interface ModelLimits {
+  contextWindowTokens: number;
+  maxOutputTokens: number;
+}
+
+export interface ModelGeneration {
+  reasoningEffort: string;
+  temperature: number;
+}
+
+export interface DiscoveredModel {
+  id: string;
+  label: string;
+}
+
+export interface ConfiguredModel {
+  capabilities: ModelCapabilities;
+  enabled: boolean;
+  generation: ModelGeneration;
+  id: string;
+  label: string;
+  limits: ModelLimits;
+  model: string;
+  modelPresetId: string;
+  protocol: ModelProtocol;
+  providerBaseUrl?: string;
+  providerId: string;
+  providerName?: string;
+}
+
+export interface ConfiguredModelProvider {
+  apiKeyPreview: string;
+  baseUrl: string;
+  discoveredModels: DiscoveredModel[];
+  enabled: boolean;
+  hasApiKey: boolean;
+  id: string;
+  lastModelsRefreshAt: number | null;
+  models: ConfiguredModel[];
+  modelsEndpoint: string;
+  name: string;
+  protocol: ModelProtocol;
+}
+
+export interface ModelSettingsState {
+  configPath: string;
+  defaultModelId: string | null;
+  defaultStrategy: DefaultModelStrategy;
+  effectiveDefaultModelId: string | null;
+  hasModels: boolean;
+  lastUsedModelId: string | null;
+  models: ConfiguredModel[];
+  nanobotConfigPath: string;
+  providers: ConfiguredModelProvider[];
+}
+
 export interface SavedModelProviderResult {
   configPath: string;
   model: string;
   modelPreset: string;
   provider: string;
+  settings?: ModelSettingsState;
 }
 
 export interface AppAboutGitInfo {
@@ -122,6 +190,7 @@ export type AgentEvent =
       type: "agent.run.started";
       conversationId: string;
       turnId: string;
+      model?: Record<string, unknown>;
       metadata?: Record<string, unknown>;
     }
   | {

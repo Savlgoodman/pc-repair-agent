@@ -60,6 +60,7 @@ class NanobotAgentAdapter:
                     run = await bot.run_streamed(
                         prompt,
                         session_key=request.conversation_id,
+                        model_preset=request.model_preset_id,
                         hooks=[
                             UiApprovalHook(
                                 conversation_id=request.conversation_id,
@@ -72,13 +73,19 @@ class NanobotAgentAdapter:
                     self._active_runs[request.turn_id] = run
                     try:
                         async for nanobot_event in run.stream_events():
-                            await output_queue.put(
-                                map_nanobot_event(
-                                    nanobot_event,
-                                    conversation_id=request.conversation_id,
-                                    turn_id=request.turn_id,
-                                )
+                            event = map_nanobot_event(
+                                nanobot_event,
+                                conversation_id=request.conversation_id,
+                                turn_id=request.turn_id,
                             )
+                            if event.get("type") == "agent.run.started" and request.model_metadata:
+                                metadata = event.get("metadata")
+                                event["model"] = request.model_metadata
+                                event["metadata"] = {
+                                    **(metadata if isinstance(metadata, dict) else {}),
+                                    **request.model_metadata,
+                                }
+                            await output_queue.put(event)
                         if not getattr(run, "done", False):
                             await run.wait()
                     finally:

@@ -1,5 +1,17 @@
 import { ensureBackend } from "./agentClient";
-import type { AppAboutInfo, ModelProviderModelsResult, SavedModelProviderResult } from "../types";
+import type {
+  AppAboutInfo,
+  ConfiguredModel,
+  ConfiguredModelProvider,
+  DefaultModelStrategy,
+  ModelCapabilities,
+  ModelGeneration,
+  ModelLimits,
+  ModelProtocol,
+  ModelProviderModelsResult,
+  ModelSettingsState,
+  SavedModelProviderResult
+} from "../types";
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const baseUrl = await ensureBackend();
@@ -34,6 +46,77 @@ export async function fetchProviderModels(options: {
       baseUrl: options.baseUrl
     }),
     method: "POST"
+  });
+}
+
+export async function loadModelSettings(): Promise<ModelSettingsState> {
+  return requestJson<ModelSettingsState>("/api/settings/model-providers");
+}
+
+export async function createModelProvider(options: {
+  apiKey: string;
+  baseUrl: string;
+  name: string;
+  protocol: ModelProtocol;
+}): Promise<ConfiguredModelProvider> {
+  return requestJson<ConfiguredModelProvider>("/api/settings/model-providers", {
+    body: JSON.stringify(options),
+    method: "POST"
+  });
+}
+
+export async function refreshModelProviderModels(providerId: string): Promise<ConfiguredModelProvider> {
+  return requestJson<ConfiguredModelProvider>(`/api/settings/model-providers/${providerId}/models/refresh`, {
+    method: "POST"
+  });
+}
+
+export async function addProviderModels(
+  providerId: string,
+  models: Array<{
+    capabilities?: Partial<ModelCapabilities>;
+    generation?: Partial<ModelGeneration>;
+    label?: string;
+    limits?: Partial<ModelLimits>;
+    model: string;
+    protocol?: ModelProtocol;
+  }>
+): Promise<ModelSettingsState> {
+  return requestJson<ModelSettingsState>(`/api/settings/model-providers/${providerId}/models`, {
+    body: JSON.stringify({ models }),
+    method: "POST"
+  });
+}
+
+export async function updateConfiguredModel(
+  modelId: string,
+  patch: Partial<Pick<ConfiguredModel, "capabilities" | "enabled" | "generation" | "label" | "limits" | "protocol">>
+): Promise<ConfiguredModel> {
+  return requestJson<ConfiguredModel>(`/api/settings/models/${modelId}`, {
+    body: JSON.stringify(patch),
+    method: "PATCH"
+  });
+}
+
+export async function deleteConfiguredModel(modelId: string): Promise<ModelSettingsState> {
+  return requestJson<ModelSettingsState>(`/api/settings/models/${modelId}`, {
+    method: "DELETE"
+  });
+}
+
+export async function deleteModelProvider(providerId: string): Promise<ModelSettingsState> {
+  return requestJson<ModelSettingsState>(`/api/settings/model-providers/${providerId}`, {
+    method: "DELETE"
+  });
+}
+
+export async function updateDefaultModel(options: {
+  defaultModelId: string | null;
+  defaultStrategy: DefaultModelStrategy;
+}): Promise<ModelSettingsState> {
+  return requestJson<ModelSettingsState>("/api/settings/models/default", {
+    body: JSON.stringify(options),
+    method: "PATCH"
   });
 }
 

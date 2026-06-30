@@ -11,6 +11,7 @@ interface BackendStatus {
 export interface StartTurnOptions {
   conversationId?: string;
   input: string;
+  modelId?: string | null;
   signal?: AbortSignal;
   turnId: string;
   onEvent: (event: AgentEvent) => void;
@@ -41,6 +42,7 @@ export async function streamAgentTurn(options: StartTurnOptions): Promise<void> 
     body: JSON.stringify({
       ...(options.conversationId ? { conversationId: options.conversationId } : {}),
       input: options.input,
+      ...(options.modelId ? { modelId: options.modelId } : {}),
       turnId: options.turnId
     }),
     headers: {

@@ -23,7 +23,8 @@ import {
   loadConversation,
   updateConversationArchiveState
 } from "../services/conversationStore";
-import type { AgentEvent, ApprovalRequest, ChatMessage, Session, ToolCallItem } from "../types";
+import { loadModelSettings } from "../services/settingsStore";
+import type { AgentEvent, ApprovalRequest, ChatMessage, ConfiguredModel, Session, ToolCallItem } from "../types";
 import "./ChatPage.css";
 
 const DRAFT_SESSION_ID = "__draft_session__";
@@ -92,6 +93,8 @@ export function ChatPage() {
   const [draft, setDraft] = useState("");
   const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
   const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(null);
+  const [availableModels, setAvailableModels] = useState<ConfiguredModel[]>([]);
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const pendingMessageDeltasRef = useRef<Record<string, PendingMessageDelta>>({});
   const streamFlushTimerRef = useRef<number | null>(null);
@@ -171,6 +174,34 @@ export function ChatPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadModels() {
+      try {
+        const modelSettings = await loadModelSettings();
+        if (cancelled) {
+          return;
+        }
+        setAvailableModels(modelSettings.models);
+        setSelectedModelId((current) => {
+          if (current && modelSettings.models.some((model) => model.id === current)) {
+            return current;
+          }
+          return modelSettings.effectiveDefaultModelId ?? modelSettings.models[0]?.id ?? null;
+        });
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    void loadModels();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeView]);
 
   useEffect(() => {
     return () => {
@@ -517,6 +548,7 @@ export function ChatPage() {
       await streamAgentTurn({
         conversationId,
         input: text,
+        modelId: selectedModelId,
         onEvent: (event) => handleAgentEvent(sessionId, event),
         signal: abortController.signal,
         turnId
@@ -614,11 +646,14 @@ export function ChatPage() {
               <ChatComposer
                 activeTurnId={activeTurnId}
                 draft={draft}
+                models={availableModels}
                 onDraftChange={setDraft}
+                onModelChange={setSelectedModelId}
                 onResolveApproval={(decision) => void resolveApproval(decision)}
                 onSendMessage={() => void sendMessage()}
                 onStopTurn={() => void stopCurrentTurn()}
                 pendingApproval={pendingApproval}
+                selectedModelId={selectedModelId}
               />
             </main>
           )}

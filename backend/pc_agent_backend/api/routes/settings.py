@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse
 from pc_agent_backend.api.dependencies import get_services
 from pc_agent_backend.core.process_utils import run_hidden
 from pc_agent_backend.core.paths import REPO_ROOT
+from pc_agent_backend.services.model_config import ModelConfigError
 from pc_agent_backend.services.runtime import AppServices
 from pc_agent_backend.version import APP_VERSION, BACKEND_VERSION
 
@@ -235,87 +236,6 @@ def _probe_models(base_url: str, api_key: str) -> dict[str, Any]:
     raise RuntimeError(last_error)
 
 
-def _sanitize_generated_env_placeholder(config: dict[str, Any]) -> None:
-    providers = config.get("providers")
-    if not isinstance(providers, dict):
-        return
-
-    deepseek = providers.get("deepseek")
-    if (
-        isinstance(deepseek, dict)
-        and deepseek.get("apiKey") == "${DEEPSEEK_API_KEY}"
-        and not os.environ.get("DEEPSEEK_API_KEY")
-    ):
-        deepseek["apiKey"] = ""
-
-
-def _save_default_model_provider(
-    *,
-    services: AppServices,
-    base_url: str,
-    api_key: str,
-    model: str,
-    supports_reasoning: bool,
-) -> dict[str, Any]:
-    config_path = services.runtime_config.nanobot_config_path
-    config = _read_json_object(config_path)
-    providers = config.setdefault("providers", {})
-    if not isinstance(providers, dict):
-        providers = {}
-        config["providers"] = providers
-
-    providers["custom"] = {
-        "apiKey": api_key,
-        "apiBase": base_url,
-    }
-    _sanitize_generated_env_placeholder(config)
-
-    preset_id = "pcAgentDefault"
-    model_preset: dict[str, Any] = {
-        "label": f"PC Agent 默认模型 ({model})",
-        "provider": "custom",
-        "model": model,
-        "maxTokens": 4096,
-        "contextWindowTokens": 65536,
-        "temperature": 0.1,
-    }
-    if supports_reasoning:
-        model_preset["reasoningEffort"] = "medium"
-
-    model_presets = config.setdefault("modelPresets", {})
-    if not isinstance(model_presets, dict):
-        model_presets = {}
-        config["modelPresets"] = model_presets
-    model_presets[preset_id] = model_preset
-
-    agents = config.setdefault("agents", {})
-    if not isinstance(agents, dict):
-        agents = {}
-        config["agents"] = agents
-    defaults = agents.setdefault("defaults", {})
-    if not isinstance(defaults, dict):
-        defaults = {}
-        agents["defaults"] = defaults
-    defaults["modelPreset"] = preset_id
-    defaults.setdefault("maxToolIterations", 20)
-    defaults.setdefault("failOnToolError", True)
-
-    tools = config.setdefault("tools", {})
-    if isinstance(tools, dict):
-        tools.setdefault("restrictToWorkspace", True)
-        tools.setdefault("exec", {"enable": True, "timeout": 30})
-        tools.setdefault("file", {"enable": True})
-        tools.setdefault("web", {"search": {"enable": False}, "fetch": {"enable": False}})
-
-    _atomic_write_json(config_path, config)
-    return {
-        "configPath": str(config_path),
-        "model": model,
-        "modelPreset": preset_id,
-        "provider": "custom",
-    }
-
-
 @router.get("/settings/about")
 async def settings_about(services: AppServices = Depends(get_services)) -> dict[str, Any]:
     return await asyncio.to_thread(_collect_about_info, services)
@@ -337,6 +257,158 @@ async def probe_model_provider_models(payload: dict[str, Any]) -> JSONResponse:
     return JSONResponse(result)
 
 
+@router.get("/settings/model-providers")
+async def list_model_providers(services: AppServices = Depends(get_services)) -> dict[str, Any]:
+    return await asyncio.to_thread(services.model_config_store.list_settings)
+
+
+@router.post("/settings/model-providers")
+async def create_model_provider(
+    payload: dict[str, Any],
+    services: AppServices = Depends(get_services),
+) -> JSONResponse:
+    try:
+        provider = await asyncio.to_thread(
+            services.model_config_store.create_provider,
+            name=str(payload.get("name") or ""),
+            base_url=str(payload.get("baseUrl") or ""),
+            api_key=str(payload.get("apiKey") or ""),
+            protocol=str(payload.get("protocol") or "openai"),
+        )
+    except ModelConfigError as error:
+        return JSONResponse({"error": str(error)}, status_code=400)
+    return JSONResponse(provider)
+
+
+@router.patch("/settings/model-providers/{provider_id}")
+async def update_model_provider(
+    provider_id: str,
+    payload: dict[str, Any],
+    services: AppServices = Depends(get_services),
+) -> JSONResponse:
+    try:
+        provider = await asyncio.to_thread(
+            services.model_config_store.update_provider,
+            provider_id,
+            payload,
+        )
+    except ModelConfigError as error:
+        return JSONResponse({"error": str(error)}, status_code=400)
+    return JSONResponse(provider)
+
+
+@router.delete("/settings/model-providers/{provider_id}")
+async def delete_model_provider(
+    provider_id: str,
+    payload: dict[str, Any] | None = None,
+    services: AppServices = Depends(get_services),
+) -> JSONResponse:
+    replacement_model_id = str((payload or {}).get("replacementModelId") or "").strip() or None
+    try:
+        settings = await asyncio.to_thread(
+            services.model_config_store.delete_provider,
+            provider_id,
+            replacement_model_id=replacement_model_id,
+        )
+    except ModelConfigError as error:
+        return JSONResponse({"error": str(error)}, status_code=400)
+    return JSONResponse(settings)
+
+
+@router.post("/settings/model-providers/{provider_id}/models/refresh")
+async def refresh_model_provider_models(
+    provider_id: str,
+    services: AppServices = Depends(get_services),
+) -> JSONResponse:
+    try:
+        connection = await asyncio.to_thread(services.model_config_store.provider_connection, provider_id)
+        result = await asyncio.to_thread(_probe_models, connection["baseUrl"], connection["apiKey"])
+        provider = await asyncio.to_thread(
+            services.model_config_store.update_models_cache,
+            provider_id,
+            endpoint=str(result.get("endpoint") or ""),
+            models=list(result.get("models") or []),
+        )
+    except ModelConfigError as error:
+        return JSONResponse({"error": str(error)}, status_code=400)
+    except RuntimeError as error:
+        return JSONResponse({"error": str(error)}, status_code=502)
+    return JSONResponse(provider)
+
+
+@router.post("/settings/model-providers/{provider_id}/models")
+async def add_model_provider_models(
+    provider_id: str,
+    payload: dict[str, Any],
+    services: AppServices = Depends(get_services),
+) -> JSONResponse:
+    raw_models = payload.get("models")
+    if isinstance(raw_models, list):
+        models = [model for model in raw_models if isinstance(model, dict)]
+    else:
+        models = [payload]
+    try:
+        settings = await asyncio.to_thread(
+            services.model_config_store.add_models,
+            provider_id,
+            models,
+        )
+    except ModelConfigError as error:
+        return JSONResponse({"error": str(error)}, status_code=400)
+    return JSONResponse(settings)
+
+
+@router.patch("/settings/models/default")
+async def update_default_model(
+    payload: dict[str, Any],
+    services: AppServices = Depends(get_services),
+) -> JSONResponse:
+    try:
+        settings = await asyncio.to_thread(
+            services.model_config_store.update_default,
+            default_strategy=str(payload.get("defaultStrategy") or "last_used"),
+            default_model_id=str(payload.get("defaultModelId") or "").strip() or None,
+        )
+    except ModelConfigError as error:
+        return JSONResponse({"error": str(error)}, status_code=400)
+    return JSONResponse(settings)
+
+
+@router.patch("/settings/models/{model_id}")
+async def update_model(
+    model_id: str,
+    payload: dict[str, Any],
+    services: AppServices = Depends(get_services),
+) -> JSONResponse:
+    try:
+        model = await asyncio.to_thread(
+            services.model_config_store.update_model,
+            model_id,
+            payload,
+        )
+    except ModelConfigError as error:
+        return JSONResponse({"error": str(error)}, status_code=400)
+    return JSONResponse(model)
+
+
+@router.delete("/settings/models/{model_id}")
+async def delete_model(
+    model_id: str,
+    payload: dict[str, Any] | None = None,
+    services: AppServices = Depends(get_services),
+) -> JSONResponse:
+    replacement_model_id = str((payload or {}).get("replacementModelId") or "").strip() or None
+    try:
+        settings = await asyncio.to_thread(
+            services.model_config_store.delete_model,
+            model_id,
+            replacement_model_id=replacement_model_id,
+        )
+    except ModelConfigError as error:
+        return JSONResponse({"error": str(error)}, status_code=400)
+    return JSONResponse(settings)
+
+
 @router.post("/settings/model-providers/default")
 async def save_default_model_provider(
     payload: dict[str, Any],
@@ -350,12 +422,44 @@ async def save_default_model_provider(
     if not base_url or not api_key or not model:
         return JSONResponse({"error": "baseUrl, apiKey and model are required"}, status_code=400)
 
-    result = await asyncio.to_thread(
-        _save_default_model_provider,
-        services=services,
-        base_url=base_url,
-        api_key=api_key,
-        model=model,
-        supports_reasoning=supports_reasoning,
-    )
-    return JSONResponse(result)
+    try:
+        provider = await asyncio.to_thread(
+            services.model_config_store.create_provider,
+            name="自定义供应商",
+            base_url=base_url,
+            api_key=api_key,
+            protocol="openai",
+        )
+        settings = await asyncio.to_thread(
+            services.model_config_store.add_models,
+            str(provider["id"]),
+            [
+                {
+                    "model": model,
+                    "label": f"PC Agent 默认模型 ({model})",
+                    "capabilities": {
+                        "reasoning": supports_reasoning,
+                    },
+                    "generation": {
+                        "reasoningEffort": "medium" if supports_reasoning else "none",
+                    },
+                }
+            ],
+        )
+        first_model = next(
+            item for item in settings["models"] if item["providerId"] == provider["id"] and item["model"] == model
+        )
+        settings = await asyncio.to_thread(
+            services.model_config_store.update_default,
+            default_strategy="fixed",
+            default_model_id=str(first_model["id"]),
+        )
+    except ModelConfigError as error:
+        return JSONResponse({"error": str(error)}, status_code=400)
+    return JSONResponse({
+        "configPath": str(services.runtime_config.nanobot_config_path),
+        "model": model,
+        "modelPreset": first_model["modelPresetId"],
+        "provider": provider["id"],
+        "settings": settings,
+    })

@@ -61,8 +61,15 @@ class ConversationRecorder:
     def create_conversation_id(self) -> str:
         return create_conversation_id()
 
-    def start_turn(self, *, conversation_id: str, prompt: str) -> TurnRecord:
+    def start_turn(
+        self,
+        *,
+        conversation_id: str,
+        prompt: str,
+        model_metadata: dict[str, Any] | None = None,
+    ) -> TurnRecord:
         timestamp = now_ms()
+        model_metadata = model_metadata or {}
         persisted = self._store.get_conversation(conversation_id)
         previous_session = persisted.get("session") if persisted else {}
         session = {
@@ -79,6 +86,7 @@ class ConversationRecorder:
             "role": "user",
             "content": prompt,
             "createdAt": timestamp,
+            "model": model_metadata or None,
             "toolCalls": [],
         }
         assistant_message = {
@@ -86,6 +94,7 @@ class ConversationRecorder:
             "role": "assistant",
             "content": "",
             "createdAt": timestamp,
+            "model": model_metadata or None,
             "streaming": True,
             "toolCalls": [],
         }
