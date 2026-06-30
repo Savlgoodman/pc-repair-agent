@@ -52,7 +52,7 @@ Path("docs/PRD.md").write_text(content, encoding="utf-8")
 | `docs/ARCHITECTURE.md` | 架构设计文档，记录 Tauri、Python 后台、Agent Runtime、审批网关等设计方向 |
 | `docs/PROJECT_STRUCTURE.md` | 项目目录结构规划，记录未来代码目录和职责边界 |
 | `docs/UI_DEVELOPMENT.md` | UI 与 Tauri 桌面壳开发文档，记录环境依赖、启动流程、目录职责和常见问题 |
-| `docs/DEVELOPMENT_WORKFLOW.md` | 开发流程规范，记录分支命名、master 使用范围、合并和版本升级要求 |
+| `docs/DEVELOPMENT_WORKFLOW.md` | 开发流程规范，记录 dev 集成、分支命名、master 使用范围、变基合并和版本升级要求 |
 | `docs/UI_NANOBOT_INTEGRATION_DESIGN.md` | UI 去 mock、接入 nanobot Python 后台和 streamdown Markdown 渲染的设计文档 |
 | `docs/NANOBOT_SDK_RESEARCH.md` | nanobot SDK 调研记录，包含流式输出、工具审批、自定义 Tool、Skill 注入和配置建议 |
 | `demo/README.md` | nanobot 命令行 demo 使用说明 |
@@ -113,7 +113,12 @@ powershell -ExecutionPolicy Bypass -File .\scripts\dev-tauri.ps1 -Proxy http://1
 
 ## 分支开发流程
 
-功能开发、Bug 修复、性能优化、重构和测试补充等改动，必须从 `master` 新建分支进行，不直接在 `master` 上开发。
+项目长期保留 `master` 和 `dev` 两个主干分支：
+
+1. `master`：稳定发布分支，只保留发布级合并、版本升级和用户明确授权的紧急修正。
+2. `dev`：集成测试分支，用于在合并到 `master` 前汇总功能分支、修复分支和性能优化分支，并完成合并测试。
+
+功能开发、Bug 修复、性能优化、重构和测试补充等改动，必须从 `dev` 新建分支进行，不直接在 `master` 上开发。文档修改、参数配置、流程说明等小幅度改动允许直接在 `dev` 上修改和提交。
 
 分支命名格式：
 
@@ -131,11 +136,13 @@ perf/overview-0630-cache
 
 `master` 分支只保留以下操作：
 
-1. 合并已经完成验证的特性分支。
+1. 合并已经在 `dev` 完成集成验证的内容。
 2. 合并后进行版本升级提交。
 3. 用户明确授权的紧急文档或流程修正。
 
-每次分支合并到 `master` 后，必须立即进行一次独立版本升级提交。版本升级使用统一入口，例如 `npm run version:set -- 0.1.3` 或修改 `VERSION` 后运行 `npm run version:sync`。版本提交只包含版本相关文件，不混入功能代码。
+所有合并尽量采用变基合并：功能分支先 `rebase dev`，再快进合并到 `dev`；`dev` 达到可发布状态后先完成集成验证，再快进合并到 `master`。如 `dev` 与 `master` 分叉，应先 `git rebase master`，再 `git merge --ff-only dev`。
+
+每次 `dev` 合并到 `master` 后，必须立即进行一次独立版本升级提交。版本升级使用统一入口，例如 `npm run version:set -- 0.1.3` 或修改 `VERSION` 后运行 `npm run version:sync`。版本提交只包含版本相关文件，不混入功能代码。
 
 完整流程见 `docs/DEVELOPMENT_WORKFLOW.md`。
 

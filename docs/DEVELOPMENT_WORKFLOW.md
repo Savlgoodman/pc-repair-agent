@@ -2,7 +2,12 @@
 
 本文记录本项目的分支开发、合并和版本升级规则。所有开发者和 AI Coding Agent 在开始功能开发、Bug 修复、性能优化或其他代码变更前，都应先确认当前分支和工作区状态。
 
-## 分支原则
+## 分支角色
+
+项目长期保留两个主干分支：
+
+1. `master`：稳定发布分支，只保留发布级合并、版本升级和用户明确授权的紧急修正。
+2. `dev`：集成测试分支，用于在合并到 `master` 前汇总功能分支、修复分支和性能优化分支，并完成合并测试。
 
 `master` 分支只保留以下操作：
 
@@ -12,14 +17,16 @@
 
 除上述情况外，不应直接在 `master` 上开发新功能、修复 Bug、做性能优化或重构。
 
+`dev` 分支用于日常集成测试。文档修改、参数配置、流程说明等小幅度改动允许直接在 `dev` 上修改和提交；功能开发、Bug 修复、性能优化和重构仍应从 `dev` 新建独立分支。
+
 ## 分支命名
 
-开发新功能、修复 Bug、性能优化、重构和测试补充等，都必须从 `master` 新建分支。
+开发新功能、修复 Bug、性能优化、重构和测试补充等，都必须从 `dev` 新建分支。
 
 分支命名格式：
 
 ```text
-<type>/<scope>-date<MMdd>-<name>
+<type>/<scope>-<MMdd>-<name>
 ```
 
 字段说明：
@@ -43,7 +50,7 @@ refactor/release-0630-version-sync
 推荐流程：
 
 ```powershell
-git switch master
+git switch dev
 git pull
 git switch -c feat/settings-0630-model-provider
 ```
@@ -56,13 +63,52 @@ git status --short
 
 能用脚本、测试或静态检查验证的改动，应在分支内完成验证，并在合并说明中记录结果。
 
-## 合并与版本升级
+## 合并策略
 
-分支开发完成并验证后，合并回 `master`。合并后必须进行一次版本升级提交。
+所有合并尽量采用变基合并，保持 Git 提交树干净、线性和易读。
+
+功能分支合入 `dev` 前，先在功能分支上变基到最新 `dev`：
+
+```powershell
+git switch dev
+git pull
+git switch feat/settings-0630-model-provider
+git rebase dev
+```
+
+变基完成并验证后，再合入 `dev`。优先使用快进合并：
+
+```powershell
+git switch dev
+git merge --ff-only feat/settings-0630-model-provider
+```
+
+如历史已经分叉且不能快进，应优先回到功能分支继续 `rebase dev`，避免无意义 merge commit。只有在需要保留分支上下文或用户明确要求时，才使用非快进合并。
+
+`dev` 累积到可以发布的程度后，先完成集成验证，再合入 `master`：
+
+```powershell
+git switch master
+git pull
+git merge --ff-only dev
+```
+
+如果 `master` 与 `dev` 已经分叉，应先将 `dev` 变基到最新 `master`：
+
+```powershell
+git switch dev
+git rebase master
+git switch master
+git merge --ff-only dev
+```
+
+## 版本升级与发布
+
+`dev` 合并到 `master` 后，必须进行一次版本升级提交，然后再发布。
 
 版本升级提交要求：
 
-1. 合并特性分支后立即执行，不能跳过。
+1. `dev` 合并到 `master` 后立即执行，不能跳过。
 2. 使用项目统一版本入口，例如 `npm run version:set -- 0.1.3` 或修改 `VERSION` 后运行 `npm run version:sync`。
 3. 版本提交只包含版本相关文件，不混入功能代码。
 4. 提交信息使用 Conventional Commits，例如 `chore: 升级版本到 0.1.3`。
@@ -71,14 +117,19 @@ git status --short
 
 ```powershell
 git switch master
-git merge --no-ff feat/settings-0630-model-provider
+git merge --ff-only dev
 npm run version:set -- 0.1.3
 git status --short
 git add VERSION package.json ui/package.json ui/package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock backend/pyproject.toml backend/uv.lock backend/pc_agent_backend/version.py
 git commit -m "chore: 升级版本到 0.1.3"
 ```
 
-如使用 squash merge，也必须在 squash 提交之后追加独立版本升级提交。
+发布完成后，确保 `dev` 重新包含 `master` 上的版本升级提交：
+
+```powershell
+git switch dev
+git rebase master
+```
 
 ## AI Agent 要求
 
@@ -89,4 +140,8 @@ git branch --show-current
 git status --short
 ```
 
-如果当前在 `master` 且任务不是版本升级、分支合并或用户明确授权的例外，应先创建符合规范的新分支再修改代码。遇到已有未提交改动时，不得擅自覆盖或回退，应先确认改动归属并保护用户工作。
+如果当前在 `master` 且任务不是版本升级、分支合并或用户明确授权的例外，应先切换到 `dev` 或从 `dev` 创建符合规范的新分支再修改代码。
+
+如果当前在 `dev` 且任务只是文档修改、参数配置或流程说明等小幅度改动，可以直接在 `dev` 上修改。其他开发、修复和优化任务应从 `dev` 新建分支。
+
+遇到已有未提交改动时，不得擅自覆盖或回退，应先确认改动归属并保护用户工作。
