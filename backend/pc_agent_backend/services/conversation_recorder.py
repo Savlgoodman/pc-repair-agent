@@ -176,6 +176,20 @@ class ConversationRecorder:
                 },
             )
             self._update_active_session(conversation_id, {"status": "approval"})
+        elif event_type == "approval.auto_decided":
+            denied = event.get("decision") == "deny"
+            self._upsert_tool_call(
+                assistant,
+                event.get("toolCallId") or create_message_id("tool"),
+                {
+                    "anchorOffset": len(str(assistant.get("content") or "")),
+                    "argumentsText": format_json(event.get("arguments")),
+                    "error": event.get("policyReason") if denied else None,
+                    "name": str(event.get("name") or ""),
+                    "risk": event.get("risk"),
+                    "status": "error" if denied else "running",
+                },
+            )
         elif event_type == "agent.run.completed":
             assistant["streaming"] = False
             if isinstance(event.get("usage"), dict):

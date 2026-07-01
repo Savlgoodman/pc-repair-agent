@@ -10,7 +10,8 @@ import type {
   ModelProtocol,
   ModelProviderModelsResult,
   ModelSettingsState,
-  SavedModelProviderResult
+  SavedModelProviderResult,
+  SecuritySettingsState
 } from "../types";
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -51,6 +52,21 @@ export async function fetchProviderModels(options: {
 
 export async function loadModelSettings(): Promise<ModelSettingsState> {
   return requestJson<ModelSettingsState>("/api/settings/model-providers");
+}
+
+export async function loadSecuritySettings(): Promise<SecuritySettingsState> {
+  return requestJson<SecuritySettingsState>("/api/settings/security");
+}
+
+export async function updateSecuritySettings(
+  patch: Partial<Pick<SecuritySettingsState, "commandPermissionMode" | "rememberLowRiskApprovals" | "rememberMediumRiskApprovals">> & {
+    fullAccessConfirmedAt?: number | null;
+  }
+): Promise<SecuritySettingsState> {
+  return requestJson<SecuritySettingsState>("/api/settings/security", {
+    body: JSON.stringify(patch),
+    method: "PATCH"
+  });
 }
 
 export async function createModelProvider(options: {

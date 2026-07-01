@@ -11,6 +11,7 @@ from pc_agent_backend.agents.nanobot.hooks import UiApprovalHook
 from pc_agent_backend.core.config import RuntimeConfig
 from pc_agent_backend.schemas.agent import AgentAdapterCapabilities, AgentEvent, AgentRunRequest
 from pc_agent_backend.services.approvals import ApprovalBroker, ToolApprovalRejected
+from pc_agent_backend.services.security_settings import SecuritySettingsStore
 
 
 class NanobotAgentAdapter:
@@ -23,9 +24,16 @@ class NanobotAgentAdapter:
         notes=["使用 nanobot SDK run_streamed 输出统一 AgentEvent。"],
     )
 
-    def __init__(self, *, runtime_config: RuntimeConfig, approvals: ApprovalBroker) -> None:
+    def __init__(
+        self,
+        *,
+        runtime_config: RuntimeConfig,
+        approvals: ApprovalBroker,
+        security_settings: SecuritySettingsStore,
+    ) -> None:
         self._runtime_config = runtime_config
         self._approvals = approvals
+        self._security_settings = security_settings
         self._active_runs: dict[str, Any] = {}
 
     async def stream_turn(self, request: AgentRunRequest) -> AsyncIterator[AgentEvent]:
@@ -67,6 +75,7 @@ class NanobotAgentAdapter:
                                 turn_id=request.turn_id,
                                 output_queue=output_queue,
                                 approvals=self._approvals,
+                                security_settings=self._security_settings,
                             )
                         ],
                     )

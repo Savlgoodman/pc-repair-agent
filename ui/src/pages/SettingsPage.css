@@ -674,6 +674,121 @@
   color: #697079;
 }
 
+.settings-security-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.settings-security-head svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--blue);
+}
+
+.settings-security-head div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-security-head strong {
+  color: #20242b;
+  font-size: 15px;
+}
+
+.settings-security-head span,
+.settings-security-note {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.settings-permission-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.settings-permission-option {
+  min-width: 0;
+  min-height: 118px;
+  border: 1px solid #dedbd7;
+  border-radius: 8px;
+  background: #fbfbfa;
+  padding: 13px;
+  color: #20242b;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-permission-option:hover {
+  border-color: #c4ccd4;
+  background: #fff;
+}
+
+.settings-permission-option.active {
+  border-color: #c9ced3;
+  background: #f2f3f4;
+}
+
+.settings-permission-option.mode-full.active {
+  border-color: #efb183;
+  background: #fff5e8;
+}
+
+.settings-permission-option:disabled {
+  cursor: default;
+  opacity: 0.76;
+}
+
+.settings-permission-icon {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #edf0f2;
+  color: #57616d;
+}
+
+.settings-permission-option.active .settings-permission-icon {
+  background: #e4e7ea;
+  color: #3f454d;
+}
+
+.settings-permission-option.mode-full.active .settings-permission-icon {
+  background: #ffe0c6;
+  color: var(--orange);
+}
+
+.settings-permission-option strong {
+  font-size: 14px;
+}
+
+.settings-permission-option > span:last-child {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.settings-security-note {
+  margin-top: 14px;
+  border-radius: 8px;
+  background: #f4f6f7;
+  padding: 10px 12px;
+}
+
+.settings-security-note.warning {
+  background: #fff5e8;
+  color: #8a4d00;
+}
+
 .settings-storage-list {
   display: flex;
   flex-direction: column;
@@ -728,6 +843,10 @@
   .settings-default-row,
   .settings-about-grid {
     grid-template-columns: 1fr;
+  }
+
+  .settings-permission-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .settings-about-grid div:nth-child(even) {
@@ -797,6 +916,10 @@
   }
 
   .settings-archive-row {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-permission-grid {
     grid-template-columns: 1fr;
   }
 }

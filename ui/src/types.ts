@@ -41,6 +41,9 @@ export interface ApprovalRequest {
   name: string;
   argumentsText: string;
   risk: "low" | "medium" | "high" | "blocked";
+  permissionMode?: CommandPermissionMode;
+  policyAction?: "allow" | "ask" | "deny";
+  policyReason?: string;
   purpose: string;
   impact: string;
   risks: string[];
@@ -141,6 +144,23 @@ export interface ModelSettingsState {
   models: ConfiguredModel[];
   nanobotConfigPath: string;
   providers: ConfiguredModelProvider[];
+}
+
+export type CommandPermissionMode = "ask" | "auto" | "full" | "repair";
+
+export interface CommandPermissionModeOption {
+  description: string;
+  id: CommandPermissionMode;
+  label: string;
+}
+
+export interface SecuritySettingsState {
+  availableModes: CommandPermissionModeOption[];
+  commandPermissionMode: CommandPermissionMode;
+  configPath: string;
+  fullAccessConfirmedAt: number | null;
+  rememberLowRiskApprovals: boolean;
+  rememberMediumRiskApprovals: boolean;
 }
 
 export interface SavedModelProviderResult {
@@ -254,10 +274,26 @@ export type AgentEvent =
       arguments?: unknown;
       argumentsText?: string;
       risk: "low" | "medium" | "high" | "blocked";
+      permissionMode?: CommandPermissionMode;
+      policyAction?: "allow" | "ask" | "deny";
+      policyReason?: string;
       purpose: string;
       impact: string;
       risks: string[];
       rollback: string;
+    }
+  | {
+      type: "approval.auto_decided";
+      conversationId: string;
+      turnId: string;
+      toolCallId?: string;
+      name: string;
+      arguments?: unknown;
+      risk: "low" | "medium" | "high" | "blocked";
+      permissionMode: CommandPermissionMode;
+      decision: "allow" | "deny";
+      policyAction?: "allow" | "ask" | "deny";
+      policyReason?: string;
     }
   | {
       type: "agent.run.completed";

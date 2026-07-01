@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { Check, ChevronDown, ChevronRight, Paperclip, Send, ShieldCheck, Square } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Flame, Gauge, Paperclip, Send, ShieldQuestion, Square, Wrench } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
-import type { ApprovalRequest, ConfiguredModel } from "../../types";
+import type { ApprovalRequest, CommandPermissionMode, ConfiguredModel } from "../../types";
 import { ApprovalCard } from "./ApprovalCard";
 
 interface ChatComposerProps {
@@ -11,11 +12,25 @@ interface ChatComposerProps {
   models: ConfiguredModel[];
   onDraftChange: (value: string) => void;
   onModelChange: (modelId: string) => void;
+  onPermissionModeChange: (mode: CommandPermissionMode) => void;
   onResolveApproval: (decision: "allow" | "deny") => void;
   onSendMessage: () => void;
   onStopTurn: () => void;
   pendingApproval: ApprovalRequest | null;
+  permissionMode: CommandPermissionMode;
+  permissionModeBusy?: boolean;
   selectedModelId: string | null;
+}
+
+const permissionModeOptions = [
+  { id: "ask", icon: ShieldQuestion, label: "用户审批", hint: "中高风险确认" },
+  { id: "auto", icon: Gauge, label: "自动审批", hint: "高风险确认" },
+  { id: "full", icon: Flame, label: "完全允许", hint: "非禁止自动允许" },
+  { id: "repair", icon: Wrench, label: "维修模式", hint: "先过维修过滤器" }
+] satisfies Array<{ id: CommandPermissionMode; icon: LucideIcon; label: string; hint: string }>;
+
+function permissionModeLabel(mode: CommandPermissionMode) {
+  return permissionModeOptions.find((item) => item.id === mode)?.label ?? "用户审批";
 }
 
 export function ChatComposer({
@@ -24,15 +39,20 @@ export function ChatComposer({
   models,
   onDraftChange,
   onModelChange,
+  onPermissionModeChange,
   onResolveApproval,
   onSendMessage,
   onStopTurn,
   pendingApproval,
+  permissionMode,
+  permissionModeBusy = false,
   selectedModelId
 }: ChatComposerProps) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
+  const [isPermissionMenuOpen, setIsPermissionMenuOpen] = useState(false);
   const [activeProviderId, setActiveProviderId] = useState<string | null>(null);
   const modelMenuRef = useRef<HTMLDivElement | null>(null);
+  const permissionMenuRef = useRef<HTMLDivElement | null>(null);
   const selectedModel = models.find((model) => model.id === selectedModelId) ?? null;
   const providerGroups = useMemo(() => {
     const groups: Array<{ id: string; name: string; models: ConfiguredModel[] }> = [];
@@ -55,6 +75,7 @@ export function ChatComposer({
     providerGroups.find((provider) => provider.id === selectedModel?.providerId) ??
     providerGroups[0] ??
     null;
+  const ActivePermissionIcon = permissionModeOptions.find((item) => item.id === permissionMode)?.icon ?? ShieldQuestion;
 
   useEffect(() => {
     if (!isModelMenuOpen) {
@@ -73,9 +94,29 @@ export function ChatComposer({
     return () => window.removeEventListener("mousedown", closeOnOutside);
   }, [isModelMenuOpen, providerGroups, selectedModel?.providerId]);
 
+  useEffect(() => {
+    if (!isPermissionMenuOpen) {
+      return undefined;
+    }
+
+    function closeOnOutside(event: MouseEvent) {
+      if (!permissionMenuRef.current?.contains(event.target as Node)) {
+        setIsPermissionMenuOpen(false);
+      }
+    }
+
+    window.addEventListener("mousedown", closeOnOutside);
+    return () => window.removeEventListener("mousedown", closeOnOutside);
+  }, [isPermissionMenuOpen]);
+
   function selectModel(modelId: string) {
     onModelChange(modelId);
     setIsModelMenuOpen(false);
+  }
+
+  function selectPermissionMode(mode: CommandPermissionMode) {
+    onPermissionModeChange(mode);
+    setIsPermissionMenuOpen(false);
   }
 
   return (
@@ -101,11 +142,44 @@ export function ChatComposer({
               <button className="icon-button" aria-label="添加附件">
                 <Paperclip size={17} />
               </button>
-              <button className="text-action">
-                <ShieldCheck size={15} />
-                完全访问
-                <ChevronDown size={14} />
-              </button>
+              <div className="permission-picker" ref={permissionMenuRef}>
+                <button
+                  aria-expanded={isPermissionMenuOpen}
+                  aria-haspopup="menu"
+                  className={`text-action permission-chip mode-${permissionMode}`}
+                  disabled={permissionModeBusy}
+                  onClick={() => setIsPermissionMenuOpen((current) => !current)}
+                  title={`命令执行权限：${permissionModeLabel(permissionMode)}`}
+                  type="button"
+                >
+                  <ActivePermissionIcon size={15} />
+                  <span>{permissionModeLabel(permissionMode)}</span>
+                  <ChevronDown size={14} />
+                </button>
+                {isPermissionMenuOpen ? (
+                  <div className="permission-menu" role="menu">
+                    {permissionModeOptions.map((option) => {
+                      const Icon = option.icon;
+                      return (
+                        <button
+                          className={`permission-menu-item mode-${option.id} ${option.id === permissionMode ? "selected" : ""}`}
+                          key={option.id}
+                          onClick={() => selectPermissionMode(option.id)}
+                          role="menuitem"
+                          type="button"
+                        >
+                          <Icon className="permission-menu-icon" size={15} />
+                          <span>
+                            <strong>{option.label}</strong>
+                            <small>{option.hint}</small>
+                          </span>
+                          {option.id === permissionMode ? <Check size={14} /> : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
             </div>
             <div className="composer-right">
               <div className="model-picker" ref={modelMenuRef}>

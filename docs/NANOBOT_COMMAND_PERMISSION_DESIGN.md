@@ -34,6 +34,7 @@ nanobot 提供的是底层组合能力：
 1. `ask`：用户审批模式。
 2. `auto`：自动审批模式。
 3. `full`：完全允许模式。
+4. `repair`：维修模式，先经过自定义维修过滤器，再决定自动允许、请求用户确认或拒绝。
 
 同时要明确：无论 nanobot 侧采用哪种模式，Tauri/Rust Execution Gateway 仍是最终安全边界。`blocked` 级别操作永远不能因为前端模式切换而自动执行。
 
@@ -165,13 +166,14 @@ nanobot `exec` 工具提供了若干安全控制：
 
 ### 4.1 模式定义
 
-建议使用三个用户可见模式：
+建议使用四个用户可见模式：
 
 | 模式 | 标识 | 用户语义 | 默认行为 |
 | --- | --- | --- | --- |
 | 用户审批 | `ask` | 涉及网络、下载或修改本机状态前先问我 | `low` 自动允许，`medium` / `high` 需要审批，`blocked` 拒绝 |
 | 自动审批 | `auto` | 自动执行低中风险操作，高风险仍提醒我 | `low` / `medium` 自动允许，`high` 需要审批，`blocked` 拒绝 |
 | 完全允许 | `full` | 尽量不中断 Agent，但保留硬性安全边界 | `low` / `medium` / `high` 自动允许，`blocked` 拒绝 |
+| 维修模式 | `repair` | 按维修场景自定义过滤命令执行权限 | 先进入自定义过滤器，由过滤器返回 `allow` / `ask` / `deny` |
 
 设计原则：
 
@@ -180,6 +182,7 @@ nanobot `exec` 工具提供了若干安全控制：
 3. `full` 只跳过 nanobot 工具审批，不跳过 Execution Gateway 的禁止策略。
 4. 所有自动允许都必须写入审计日志。
 5. 高风险系统修改即使在 `full` 下，也应优先通过结构化 `PendingAction` 进入 Execution Gateway，而不是让 nanobot 原始 `exec` 直接执行。
+6. `repair` 是可插拔过滤器模式，不是放宽版 `full`；默认过滤器应保守，高风险仍请求用户确认。
 
 ### 4.2 风险等级
 
@@ -209,6 +212,7 @@ class PermissionDecision:
 | `ask` | 自动允许 | 用户审批 | 用户审批 | 自动拒绝 |
 | `auto` | 自动允许 | 自动允许 | 用户审批 | 自动拒绝 |
 | `full` | 自动允许 | 自动允许 | 自动允许 | 自动拒绝 |
+| `repair` | 过滤器决定 | 过滤器决定 | 过滤器决定 | 自动拒绝或过滤器拒绝 |
 
 补充规则：
 
@@ -216,6 +220,38 @@ class PermissionDecision:
 2. `exec` 在正式产品中不建议作为高风险系统修改的主通道；优先使用 `execution_gateway_request` 或 `create_pending_action`。
 3. 涉及管理员权限、驱动安装、注册表、系统服务、启动项、环境变量的动作，即使被 `full` 自动允许，也必须在 Execution Gateway 侧记录完整审计。
 4. 用户可配置“本次会话记住”或“对同类低中风险操作记住”，但不建议对高风险做长期静默记住。
+5. `repair` 模式必须 hook 权限请求，调用自定义过滤器后再决定是直接通过执行、向用户请求确认，还是拒绝。
+
+### 4.4 维修模式过滤器
+
+维修模式的核心是把权限判断从固定矩阵交给可替换过滤器：
+
+```python
+class RepairPermissionFilter(Protocol):
+    def evaluate(
+        self,
+        *,
+        tool_name: str,
+        arguments: dict[str, Any],
+        risk: RiskLevel,
+    ) -> PermissionDecision | None:
+        ...
+```
+
+过滤器返回值：
+
+1. `allow`：直接通过 nanobot hook，继续执行工具。
+2. `ask`：发出 `approval.required`，交给用户确认。
+3. `deny`：发出自动拒绝事件并中断当前 turn。
+4. `None`：回退到默认自动审批矩阵。
+
+默认维修过滤器建议：
+
+1. `low` / `medium` 自动允许。
+2. `high` 请求用户确认。
+3. `blocked` 拒绝。
+
+后续你的自定义过滤器可以根据命令内容、工具参数、来源 Skill、目标路径、签名状态、是否位于缓存目录、是否为官方驱动安装器等条件做更细分判断。
 
 ## 5. 推荐运行时架构
 
@@ -227,9 +263,10 @@ UI 设置权限模式
   -> NanobotAgentAdapter 创建 PermissionPolicy
   -> UiApprovalHook.before_execute_tools
   -> PermissionPolicy.evaluate(tool_call)
+  -> repair: 调用 RepairPermissionFilter.evaluate(...)
   -> allow: 记录自动允许事件，nanobot 继续
   -> ask: 发出 approval.required，等待用户决策
-  -> deny: 发出 approval.denied，抛异常中断 turn
+  -> deny: 发出 approval.auto_decided deny，抛异常中断 turn
   -> 高风险真实执行仍进入 Tauri/Rust Execution Gateway
 ```
 
@@ -245,14 +282,14 @@ backend/pc_agent_backend/
     nanobot/
       hooks.py                 # UiApprovalHook 接入 PermissionPolicy
   services/
-    app_settings.py            # 读取/保存 app_config.json
+    security_settings.py       # 读取/保存 app_config.json 中的 security
     audit_log.py               # 审计日志
 ```
 
 核心类型：
 
 ```python
-PermissionMode = Literal["ask", "auto", "full"]
+PermissionMode = Literal["ask", "auto", "full", "repair"]
 RiskLevel = Literal["low", "medium", "high", "blocked"]
 PermissionAction = Literal["allow", "ask", "deny"]
 
@@ -267,7 +304,7 @@ class ToolPermissionPolicy:
 
 ```text
 命令执行权限
-[用户审批] [自动审批] [完全允许]
+[用户审批] [自动审批] [完全允许] [维修模式]
 ```
 
 对应说明：
@@ -275,6 +312,7 @@ class ToolPermissionPolicy:
 1. 用户审批：涉及下载、网络或修改系统前会确认。
 2. 自动审批：自动允许低中风险操作，高风险仍确认。
 3. 完全允许：减少中断，但禁止操作仍会被拦截并记录。
+4. 维修模式：先交给自定义维修过滤器判断，过滤后自动通过或请求确认。
 
 UI 注意：
 
@@ -282,6 +320,7 @@ UI 注意：
 2. `full` 设置应有明显状态提示。
 3. 审批卡片中显示当前模式、风险等级、自动放行原因或需要确认原因。
 4. 用户切换权限模式只影响后续工具调用，不改变正在等待审批的请求。
+5. 设置页和输入框旁的快捷权限切换必须共用 `security.commandPermissionMode`，避免出现两个不同来源的权限状态。
 
 ### 5.4 配置存储
 
@@ -468,20 +507,23 @@ MVP 阶段建议：
 2. 扩展 `risk.py` 支持 `blocked`。
 3. `UiApprovalHook` 改为依赖 `ToolPermissionPolicy`。
 4. 自动允许和自动拒绝输出 `approval.auto_decided`。
+5. 新增 `RepairPermissionFilter` 接口，为维修模式预留自定义过滤器入口。
 
 验收：
 
 1. `ask` 下 medium/high 仍会出现审批。
 2. `auto` 下 medium 自动允许，high 仍审批。
 3. `full` 下 high 自动允许。
-4. `blocked` 在所有模式下都拒绝。
+4. `repair` 下权限请求先进入维修过滤器。
+5. `blocked` 在所有模式下都拒绝。
 
 ### 阶段 2：配置与 UI 切换
 
 1. `app_config.json` 增加 `security.commandPermissionMode`。
-2. 设置页增加三段式权限切换。
+2. 设置页增加四档权限切换。
 3. 切换后只影响新 turn 或后续 tool call。
 4. `full` 首次开启要求二次确认。
+5. `repair` 模式展示自定义过滤器说明。
 
 验收：
 
@@ -545,4 +587,3 @@ commandPermissionMode = "ask"
 自动审批：自动允许低中风险操作，高风险仍会确认。
 完全允许：尽量不中断 Agent，但禁止操作仍会被拦截并记录。
 ```
-

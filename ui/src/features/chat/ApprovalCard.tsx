@@ -16,6 +16,7 @@ export function ApprovalCard({ approval, onResolve }: ApprovalCardProps) {
           <p>
             {formatRisk(approval.risk)}。{approval.purpose}
           </p>
+          {approval.policyReason ? <span className="approval-args">策略：{approval.policyReason}</span> : null}
           <span className="approval-args">参数：{summarizeArguments(approval.argumentsText)}</span>
         </div>
         <div className="approval-actions">

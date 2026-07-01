@@ -8,12 +8,17 @@ import {
   ChevronDown,
   ChevronRight,
   Database,
+  Flame,
+  Gauge,
   Pencil,
   Info,
   RefreshCw,
   RotateCcw,
+  ShieldCheck,
+  ShieldQuestion,
   SlidersHorizontal,
   Trash2,
+  Wrench,
   X
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -26,23 +31,27 @@ import {
   deleteModelProvider,
   loadAppAbout,
   loadModelSettings,
+  loadSecuritySettings,
   refreshModelProviderModels,
   updateConfiguredModel,
   updateDefaultModel,
-  updateModelProvider
+  updateModelProvider,
+  updateSecuritySettings
 } from "../services/settingsStore";
 import type {
   AppAboutInfo,
+  CommandPermissionMode,
   ConfiguredModel,
   ConfiguredModelProvider,
   ModelCapabilities,
   ModelProtocol,
   ModelSettingsState,
+  SecuritySettingsState,
   Session
 } from "../types";
 import "./SettingsPage.css";
 
-type SettingsSection = "providers" | "archive" | "about";
+type SettingsSection = "providers" | "security" | "archive" | "about";
 
 interface SettingsPageProps {
   archivedSessions: Session[];
@@ -53,6 +62,7 @@ interface SettingsPageProps {
 
 const settingsMenu = [
   { id: "providers", icon: Bot, label: "模型提供商配置" },
+  { id: "security", icon: ShieldCheck, label: "命令权限" },
   { id: "archive", icon: ArchiveRestore, label: "归档会话" },
   { id: "about", icon: Info, label: "关于" }
 ] satisfies Array<{ id: SettingsSection; icon: LucideIcon; label: string }>;
@@ -82,6 +92,37 @@ const reasoningEffortOptions = [
   { label: "medium", value: "medium" },
   { label: "high", value: "high" }
 ] satisfies Array<SettingsSelectOption<string>>;
+
+const permissionModeCards = [
+  {
+    id: "ask",
+    icon: ShieldQuestion,
+    label: "用户审批",
+    summary: "低风险自动允许，中高风险确认"
+  },
+  {
+    id: "auto",
+    icon: Gauge,
+    label: "自动审批",
+    summary: "低中风险自动允许，高风险确认"
+  },
+  {
+    id: "full",
+    icon: Flame,
+    label: "完全允许",
+    summary: "非禁止操作自动允许"
+  },
+  {
+    id: "repair",
+    icon: Wrench,
+    label: "维修模式",
+    summary: "经过自定义维修过滤器判断"
+  }
+] satisfies Array<{ id: CommandPermissionMode; icon: LucideIcon; label: string; summary: string }>;
+
+function permissionModeLabel(value: CommandPermissionMode) {
+  return permissionModeCards.find((item) => item.id === value)?.label ?? value;
+}
 
 interface ProviderEditDraft {
   apiKey: string;
@@ -931,6 +972,138 @@ function ModelProvidersSettings() {
   );
 }
 
+function SecuritySettings() {
+  const [settings, setSettings] = useState<SecuritySettingsState | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [busyMode, setBusyMode] = useState<CommandPermissionMode | null>(null);
+
+  async function refreshSecuritySettings() {
+    setIsLoading(true);
+    setError(null);
+    try {
+      setSettings(await loadSecuritySettings());
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : String(requestError));
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void refreshSecuritySettings();
+  }, []);
+
+  async function choosePermissionMode(mode: CommandPermissionMode) {
+    if (mode === settings?.commandPermissionMode || busyMode) {
+      return;
+    }
+    if (mode === "full" && !window.confirm("完全允许会自动放行非禁止的高风险工具调用。确定切换吗？")) {
+      return;
+    }
+
+    setBusyMode(mode);
+    setError(null);
+    try {
+      setSettings(await updateSecuritySettings({
+        commandPermissionMode: mode,
+        fullAccessConfirmedAt: mode === "full" ? Date.now() : null
+      }));
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : String(requestError));
+    } finally {
+      setBusyMode(null);
+    }
+  }
+
+  async function updateRememberOption(name: "rememberLowRiskApprovals" | "rememberMediumRiskApprovals", checked: boolean) {
+    setError(null);
+    try {
+      setSettings(await updateSecuritySettings({ [name]: checked }));
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : String(requestError));
+    }
+  }
+
+  const activeMode = settings?.commandPermissionMode ?? "ask";
+
+  return (
+    <section className="settings-content-column">
+      <div className="settings-page-heading">
+        <span className="eyebrow">安全</span>
+        <h1>命令执行权限</h1>
+      </div>
+
+      <div className="settings-card">
+        <div className="settings-security-head">
+          <ShieldCheck size={17} />
+          <div>
+            <strong>当前模式：{permissionModeLabel(activeMode)}</strong>
+            <span>权限切换会影响后续工具调用；已经等待确认的请求不会被自动改写。</span>
+          </div>
+        </div>
+
+        <div className="settings-permission-grid">
+          {permissionModeCards.map((mode) => {
+            const isActive = activeMode === mode.id;
+            const Icon = mode.icon;
+            return (
+              <button
+                className={`settings-permission-option mode-${mode.id} ${isActive ? "active" : ""}`}
+                disabled={isLoading || busyMode !== null}
+                key={mode.id}
+                onClick={() => void choosePermissionMode(mode.id)}
+                type="button"
+              >
+                <span className="settings-permission-icon">
+                  <Icon size={16} />
+                </span>
+                <strong>{mode.label}</strong>
+                <span>{mode.summary}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {activeMode === "repair" ? (
+          <div className="settings-security-note">
+            维修模式会先 hook 权限请求，通过后端自定义维修过滤器判断是否直接执行、请求用户确认或拒绝。当前默认过滤器会自动允许低中风险，高风险仍请求确认。
+          </div>
+        ) : null}
+        {activeMode === "full" ? (
+          <div className="settings-security-note warning">
+            完全允许不会绕过禁止策略，也不会绕过后续 Rust Execution Gateway 的硬性安全边界。
+          </div>
+        ) : null}
+        {error ? <div className="settings-inline-error">{error}</div> : null}
+      </div>
+
+      <div className="settings-card">
+        <div className="settings-toggle-row wrap">
+          <label className="settings-check">
+            <input
+              checked={settings?.rememberLowRiskApprovals ?? true}
+              disabled={!settings}
+              onChange={(event) => void updateRememberOption("rememberLowRiskApprovals", event.target.checked)}
+              type="checkbox"
+            />
+            <span>记住低风险自动允许偏好</span>
+          </label>
+          <label className="settings-check">
+            <input
+              checked={settings?.rememberMediumRiskApprovals ?? false}
+              disabled={!settings}
+              onChange={(event) => void updateRememberOption("rememberMediumRiskApprovals", event.target.checked)}
+              type="checkbox"
+            />
+            <span>记住中风险自动允许偏好</span>
+          </label>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ArchivedSessionsSettings({
   archivedSessions,
   onDeleteArchivedSession,
@@ -1137,6 +1310,7 @@ export function SettingsPage({
 
       <main className="settings-main">
         {activeSection === "providers" ? <ModelProvidersSettings /> : null}
+        {activeSection === "security" ? <SecuritySettings /> : null}
         {activeSection === "archive" ? (
           <ArchivedSessionsSettings
             archivedSessions={archivedSessions}
