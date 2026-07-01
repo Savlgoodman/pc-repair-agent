@@ -80,3 +80,31 @@ Python nanobot hook
 ```
 
 也就是说，nanobot hook 负责“提前发现工具调用并等待用户选择”，Tauri/Rust 才是最终执行边界。
+
+## Codex SDK Adapter 探针
+
+`codex_adapter_probe.py` 用来验证 `openai-codex` Python SDK 是否适合后续 Codex adapter 接入。默认只做本地 SDK 反射，不启动 Codex runtime，不调用模型，也不执行命令：
+
+```powershell
+cd .\demo
+New-Item -ItemType Directory -Force .\.uv-cache | Out-Null
+$env:UV_CACHE_DIR=(Resolve-Path .\.uv-cache).Path
+uv sync
+uv run python .\codex_adapter_probe.py
+```
+
+如果需要显式启动一次只读 smoke run，可以加 `--smoke`。这会启动本地 Codex runtime，可能调用模型并执行只读命令：
+
+```powershell
+uv run python .\codex_adapter_probe.py --smoke --permission-mode readonly
+```
+
+如需验证产品权限映射，可以使用：
+
+```powershell
+uv run python .\codex_adapter_probe.py --smoke --permission-mode ask --approval-decision deny
+```
+
+注意：`ask` smoke 可能在 `demo/` 工作区内创建或修改测试文件。不要在未隔离目录中用写入类 prompt 做验证。
+
+探针结论和 adapter 重设计见 `docs/AGENT_ADAPTER_REDESIGN.md`。

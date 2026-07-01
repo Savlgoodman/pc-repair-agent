@@ -5,6 +5,7 @@ description = "PC Repair Agent nanobot SDK CLI approval demo"
 requires-python = ">=3.11"
 dependencies = [
     "nanobot-ai>=0.2.2",
+    "openai-codex>=0.1.0b2",
 ]
 
 [project.entry-points."nanobot.tools"]
