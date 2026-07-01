@@ -701,7 +701,105 @@
 .text-action {
   border-color: transparent;
   background: transparent;
+  color: #3f454d;
+}
+
+.permission-picker {
+  position: relative;
+}
+
+.permission-chip {
+  max-width: 148px;
+  color: #3f454d;
+}
+
+.permission-chip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.permission-chip.mode-full {
   color: var(--orange);
+}
+
+.permission-chip:disabled {
+  cursor: default;
+  opacity: 0.62;
+}
+
+.permission-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 14;
+  width: 218px;
+  border: 1px solid rgba(213, 210, 205, 0.92);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 14px 38px rgba(32, 36, 43, 0.16);
+  padding: 6px;
+}
+
+.permission-menu-item {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  padding: 6px 9px;
+  color: #2f353d;
+  font: inherit;
+  text-align: left;
+}
+
+.permission-menu-icon {
+  flex: 0 0 auto;
+  color: #697079;
+}
+
+.permission-menu-item.mode-full .permission-menu-icon,
+.permission-menu-item.mode-full.selected {
+  color: var(--orange);
+}
+
+.permission-menu-item > span {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.permission-menu-item strong,
+.permission-menu-item small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.permission-menu-item strong {
+  font-size: 13px;
+}
+
+.permission-menu-item small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.permission-menu-item:hover,
+.permission-menu-item.selected {
+  background: #f0f1f2;
+  color: #20242b;
+}
+
+.permission-menu-item svg {
+  flex: 0 0 auto;
 }
 
 .model-chip {
@@ -861,6 +959,14 @@
 
   .model-picker {
     --model-menu-width: min(188px, calc((100vw - 56px) / 2));
+  }
+
+  .permission-chip {
+    max-width: 126px;
+  }
+
+  .permission-menu {
+    width: min(208px, calc(100vw - 48px));
   }
 }
 

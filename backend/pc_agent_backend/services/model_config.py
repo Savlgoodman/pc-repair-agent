@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from pc_agent_backend.core.config import RuntimeConfig
+from pc_agent_backend.services.security_settings import normalize_security_settings
 from pc_agent_backend.storage.conversations import atomic_write_json, now_ms
 
 
@@ -106,6 +107,7 @@ def _empty_config() -> dict[str, Any]:
             "lastUsedModelId": None,
         },
         "llmProviders": [],
+        "security": normalize_security_settings({}),
     }
 
 
@@ -556,6 +558,7 @@ class ModelConfigStore:
             "defaultModelId": settings.get("defaultModelId"),
             "lastUsedModelId": settings.get("lastUsedModelId"),
         }
+        normalized["security"] = normalize_security_settings(config.get("security"))
         providers = config.get("llmProviders") if isinstance(config.get("llmProviders"), list) else []
         provider_ids: set[str] = set()
         model_ids: set[str] = set()

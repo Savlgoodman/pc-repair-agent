@@ -63,7 +63,7 @@ def map_nanobot_event(event: Any, *, conversation_id: str, turn_id: str) -> dict
             "toolCallId": getattr(event, "tool_call_id", "") or "",
             "name": name,
             "arguments": to_jsonable(getattr(event, "arguments", {}) or {}),
-            "risk": risk_level(name),
+            "risk": risk_level(name, to_jsonable(getattr(event, "arguments", {}) or {})),
         }
     if event.type == STREAM_EVENT_TOOL_COMPLETED:
         return {

@@ -23,8 +23,16 @@ import {
   loadConversation,
   updateConversationArchiveState
 } from "../services/conversationStore";
-import { loadModelSettings } from "../services/settingsStore";
-import type { AgentEvent, ApprovalRequest, ChatMessage, ConfiguredModel, Session, ToolCallItem } from "../types";
+import { loadModelSettings, loadSecuritySettings, updateSecuritySettings } from "../services/settingsStore";
+import type {
+  AgentEvent,
+  ApprovalRequest,
+  ChatMessage,
+  CommandPermissionMode,
+  ConfiguredModel,
+  Session,
+  ToolCallItem
+} from "../types";
 import "./ChatPage.css";
 
 const DRAFT_SESSION_ID = "__draft_session__";
@@ -122,6 +130,8 @@ export function ChatPage() {
   const [pendingApproval, setPendingApproval] = useState<PendingApprovalState | null>(null);
   const [availableModels, setAvailableModels] = useState<ConfiguredModel[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const [permissionMode, setPermissionMode] = useState<CommandPermissionMode>("ask");
+  const [permissionModeBusy, setPermissionModeBusy] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const pendingMessageDeltasRef = useRef<Record<string, PendingMessageDelta>>({});
   const runningSessionIdsRef = useRef<Set<string>>(new Set());
@@ -227,6 +237,27 @@ export function ChatPage() {
     }
 
     void loadModels();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeView]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSecurity() {
+      try {
+        const settings = await loadSecuritySettings();
+        if (!cancelled) {
+          setPermissionMode(settings.commandPermissionMode);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    void loadSecurity();
 
     return () => {
       cancelled = true;
@@ -526,6 +557,9 @@ export function ChatPage() {
         impact: event.impact,
         name: event.name,
         purpose: event.purpose,
+        permissionMode: event.permissionMode,
+        policyAction: event.policyAction,
+        policyReason: event.policyReason,
         risk: event.risk,
         risks: event.risks,
         rollback: event.rollback,
@@ -542,6 +576,25 @@ export function ChatPage() {
             name: event.name,
             risk: event.risk,
             status: "approval"
+          })
+        }))
+      );
+      return;
+    }
+
+    if (event.type === "approval.auto_decided") {
+      flushQueuedMessageDeltas();
+      setMessages((current) =>
+        updateMessage(current, targetSessionId, assistantMessageId, (message) => ({
+          ...message,
+          toolCalls: upsertToolCall(message.toolCalls, {
+            anchorOffset: message.content.length,
+            argumentsText: formatJson(event.arguments),
+            error: event.decision === "deny" ? event.policyReason ?? "权限策略已拒绝" : undefined,
+            id: event.toolCallId || createId("tool"),
+            name: event.name,
+            risk: event.risk,
+            status: event.decision === "deny" ? "error" : "running"
           })
         }))
       );
@@ -661,6 +714,28 @@ export function ChatPage() {
       });
   }
 
+  async function changePermissionMode(mode: CommandPermissionMode) {
+    if (mode === permissionMode || permissionModeBusy) {
+      return;
+    }
+    if (mode === "full" && !window.confirm("完全允许会自动放行非禁止的高风险工具调用。确定切换吗？")) {
+      return;
+    }
+
+    setPermissionModeBusy(true);
+    try {
+      const settings = await updateSecuritySettings({
+        commandPermissionMode: mode,
+        fullAccessConfirmedAt: mode === "full" ? Date.now() : null
+      });
+      setPermissionMode(settings.commandPermissionMode);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setPermissionModeBusy(false);
+    }
+  }
+
   return (
     <>
       {activeView === "settings" ? (
@@ -701,10 +776,13 @@ export function ChatPage() {
                 models={availableModels}
                 onDraftChange={setDraft}
                 onModelChange={setSelectedModelId}
+                onPermissionModeChange={(mode) => void changePermissionMode(mode)}
                 onResolveApproval={(decision) => void resolveApproval(decision)}
                 onSendMessage={() => void sendMessage()}
                 onStopTurn={() => void stopCurrentTurn()}
                 pendingApproval={activePendingApproval}
+                permissionMode={permissionMode}
+                permissionModeBusy={permissionModeBusy}
                 selectedModelId={selectedModelId}
               />
             </main>

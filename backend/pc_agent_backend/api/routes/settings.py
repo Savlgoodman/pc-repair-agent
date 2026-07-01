@@ -20,6 +20,7 @@ from pc_agent_backend.core.process_utils import run_hidden
 from pc_agent_backend.core.paths import REPO_ROOT
 from pc_agent_backend.services.model_config import ModelConfigError
 from pc_agent_backend.services.runtime import AppServices
+from pc_agent_backend.services.security_settings import SecuritySettingsError
 from pc_agent_backend.version import APP_VERSION, BACKEND_VERSION
 
 
@@ -260,6 +261,26 @@ async def probe_model_provider_models(payload: dict[str, Any]) -> JSONResponse:
 @router.get("/settings/model-providers")
 async def list_model_providers(services: AppServices = Depends(get_services)) -> dict[str, Any]:
     return await asyncio.to_thread(services.model_config_store.list_settings)
+
+
+@router.get("/settings/security")
+async def get_security_settings(services: AppServices = Depends(get_services)) -> dict[str, Any]:
+    return await asyncio.to_thread(services.security_settings_store.get_settings)
+
+
+@router.patch("/settings/security")
+async def update_security_settings(
+    payload: dict[str, Any],
+    services: AppServices = Depends(get_services),
+) -> JSONResponse:
+    try:
+        settings = await asyncio.to_thread(
+            services.security_settings_store.update_settings,
+            payload,
+        )
+    except SecuritySettingsError as error:
+        return JSONResponse({"error": str(error)}, status_code=400)
+    return JSONResponse(settings)
 
 
 @router.post("/settings/model-providers")

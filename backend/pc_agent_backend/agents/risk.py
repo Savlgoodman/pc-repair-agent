@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
+
+
+RiskLevel = Literal["low", "medium", "high", "blocked"]
 
 
 HIGH_RISK_TOOL_NAMES = {
@@ -22,8 +25,30 @@ MEDIUM_RISK_TOOL_NAMES = {
     "web_search",
 }
 
+BLOCKED_TOOL_NAMES = {
+    "disable_security_software",
+    "exfiltrate_secret",
+    "format_disk",
+}
 
-def risk_level(tool_name: str) -> str:
+BLOCKED_COMMAND_PATTERNS = (
+    "format ",
+    "diskpart",
+    "cipher /w",
+    "shutdown",
+    "reboot",
+    "poweroff",
+)
+
+
+def risk_level(tool_name: str, arguments: dict[str, Any] | None = None) -> RiskLevel:
+    if tool_name in BLOCKED_TOOL_NAMES:
+        return "blocked"
+    command = ""
+    if isinstance(arguments, dict):
+        command = str(arguments.get("command") or arguments.get("cmd") or "").lower()
+    if tool_name == "exec" and command and any(pattern in command for pattern in BLOCKED_COMMAND_PATTERNS):
+        return "blocked"
     if tool_name in HIGH_RISK_TOOL_NAMES:
         return "high"
     if tool_name in MEDIUM_RISK_TOOL_NAMES or tool_name.startswith("web_"):
@@ -31,8 +56,18 @@ def risk_level(tool_name: str) -> str:
     return "low"
 
 
-def describe_risk(tool_name: str) -> dict[str, Any]:
-    level = risk_level(tool_name)
+def describe_risk(tool_name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
+    level = risk_level(tool_name, arguments)
+    if level == "blocked":
+        return {
+            "purpose": "Agent 准备执行被安全策略禁止的工具调用。",
+            "impact": "该操作可能造成不可恢复的系统破坏、越权访问或超出维修场景。",
+            "risks": [
+                "禁止操作不会被执行。",
+                "如确需类似操作，应改为人工处理或设计专门的受控维修动作。",
+            ],
+            "rollback": "该操作已被拦截，无需回滚。",
+        }
     if level == "high":
         return {
             "purpose": "Agent 准备执行可能修改本机状态的工具调用。",

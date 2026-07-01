@@ -12,6 +12,7 @@ from pc_agent_backend.services.approvals import ApprovalBroker
 from pc_agent_backend.services.conversation_recorder import ConversationRecorder
 from pc_agent_backend.services.model_config import ModelConfigStore
 from pc_agent_backend.services.runtime import AppServices
+from pc_agent_backend.services.security_settings import SecuritySettingsStore
 from pc_agent_backend.storage.conversations import ConversationStore
 from pc_agent_backend.version import BACKEND_VERSION
 
@@ -21,6 +22,7 @@ def create_app(runtime_config: RuntimeConfig, workspace: Path) -> FastAPI:
     approvals = ApprovalBroker()
     conversation_store = ConversationStore(runtime_config.record_dir)
     model_config_store = ModelConfigStore(runtime_config)
+    security_settings_store = SecuritySettingsStore(runtime_config)
     services = AppServices(
         runtime_config=runtime_config,
         workspace=workspace,
@@ -28,7 +30,12 @@ def create_app(runtime_config: RuntimeConfig, workspace: Path) -> FastAPI:
         conversation_store=conversation_store,
         conversation_recorder=ConversationRecorder(conversation_store),
         model_config_store=model_config_store,
-        agent_adapter=create_agent_adapter(runtime_config=runtime_config, approvals=approvals),
+        security_settings_store=security_settings_store,
+        agent_adapter=create_agent_adapter(
+            runtime_config=runtime_config,
+            approvals=approvals,
+            security_settings=security_settings_store,
+        ),
     )
     app.state.services = services
 
