@@ -6,13 +6,13 @@
 
 项目长期保留两个主干分支：
 
-1. `master`：稳定发布分支，只保留发布级合并、版本升级和管理员明确授权的紧急修正。
+1. `master`：稳定发布分支，只保留已经在 `dev` 完成版本升级和验证后的发布合并，以及管理员明确授权的紧急修正。
 2. `dev`：集成测试分支，用于在合并到 `master` 前汇总功能分支、修复分支和性能优化分支，并完成合并测试。
 
 `master` 分支只保留以下操作：
 
 1. 合并已经完成验证的特性分支。
-2. 合并后进行版本升级提交。
+2. 发布编译。
 3. 管理员明确授权的紧急文档或流程修正。
 
 除上述情况外，不应直接在 `master` 上开发新功能、修复 Bug、做性能优化或重构。
@@ -86,51 +86,62 @@ git merge --ff-only kevin/feat/ui-0708-setting-page
 
 如历史已经分叉且不能快进，应优先回到功能分支继续 `rebase dev`，避免无意义 merge commit。只有在需要保留分支上下文或用户明确要求时，才使用非快进合并。
 
-`dev` 累积到可以发布的程度后，先完成集成验证，再由管理员合入 `master`：
+`dev` 累积到可以发布的程度后，先在 `dev` 完成集成验证和版本升级提交，再由管理员合入 `master`：
 
 ```powershell
+git switch dev
+npm run version:set -- 0.1.3
+git status --short
+git add VERSION package.json ui/package.json ui/package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock backend/pyproject.toml backend/uv.lock backend/pc_agent_backend/version.py
+git commit -m "chore: 升级版本到 0.1.3"
 git switch master
 git pull
 git merge --ff-only dev
 ```
 
-如果 `master` 与 `dev` 已经分叉，应先将 `dev` 变基到最新 `master`：
+如果 `master` 与 `dev` 已经分叉，应先将 `dev` 变基到最新 `master`，再在 `dev` 上执行版本升级提交：
 
 ```powershell
 git switch dev
 git rebase master
+npm run version:set -- 0.1.3
+git status --short
+git add VERSION package.json ui/package.json ui/package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock backend/pyproject.toml backend/uv.lock backend/pc_agent_backend/version.py
+git commit -m "chore: 升级版本到 0.1.3"
 git switch master
 git merge --ff-only dev
 ```
 
 ## 版本升级与发布
 
-`dev` 合并到 `master` 后，必须进行一次版本升级提交，然后再发布。
+准备发布时，必须先在 `dev` 分支完成版本升级提交，再将 `dev` 快进合并到 `master`，最后在 `master` 上执行发布编译。
 
 版本升级提交要求：
 
-1. `dev` 合并到 `master` 后立即执行，不能跳过。
+1. 在 `dev` 合并到 `master` 之前执行，不能跳过。
 2. 使用项目统一版本入口，例如 `npm run version:set -- 0.1.3` 或修改 `VERSION` 后运行 `npm run version:sync`。
 3. 版本提交只包含版本相关文件，不混入功能代码。
 4. 提交信息使用 Conventional Commits，例如 `chore: 升级版本到 0.1.3`。
+5. `master` 不再创建独立版本升级提交；`master` 只接收已经包含版本提交的 `dev` 历史并执行发布编译。
 
 推荐顺序：
 
 ```powershell
-git switch master
-git merge --ff-only dev
+git switch dev
+npm run ui:build
+uv run --project backend python -m pc_agent_backend.main --help
+uv run --project backend python -m compileall backend\pc_agent_backend
+cargo check --manifest-path .\src-tauri\Cargo.toml
 npm run version:set -- 0.1.3
 git status --short
 git add VERSION package.json ui/package.json ui/package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock backend/pyproject.toml backend/uv.lock backend/pc_agent_backend/version.py
 git commit -m "chore: 升级版本到 0.1.3"
+git switch master
+git merge --ff-only dev
+npm run release:win
 ```
 
-发布完成后，确保 `dev` 重新包含 `master` 上的版本升级提交：
-
-```powershell
-git switch dev
-git rebase master
-```
+发布完成后，`master` 与 `dev` 应指向同一个版本提交，或 `master` 仅比远端状态领先同一条已经在 `dev` 中存在的发布历史。不得在 `master` 上补做版本提交后再反向同步。
 
 ## AI Agent 要求
 

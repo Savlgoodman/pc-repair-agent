@@ -37,11 +37,7 @@ cargo check --manifest-path .\src-tauri\Cargo.toml
 npm run version:set -- 0.1.2
 ```
 
-也可以在发布时直接传入版本号：
-
-```powershell
-npm run release:win -- -Version 0.1.2
-```
+发布时不应再临时传入新版本号。版本升级必须先在 `dev` 分支完成并提交，然后再合并到 `master` 执行打包和发布。
 
 如果只手动修改了 `VERSION`，可执行：
 
@@ -49,7 +45,7 @@ npm run release:win -- -Version 0.1.2
 npm run version:sync
 ```
 
-`release.ps1` 和 `scripts/package-windows.ps1` 会在打包前自动执行版本同步。安装态关于页优先使用 Tauri 启动 sidecar 时注入的版本环境变量，避免依赖源码仓库中的 `package.json` 或 `pyproject.toml`。
+`release.ps1` 和 `scripts/package-windows.ps1` 会在打包前自动同步已有版本字段，但发布流程不应依赖它们在 `master` 上产生新的版本改动。安装态关于页优先使用 Tauri 启动 sidecar 时注入的版本环境变量，避免依赖源码仓库中的 `package.json` 或 `pyproject.toml`。
 
 ## 打包
 
@@ -61,11 +57,7 @@ npm run package:win
 
 打包命令会在默认 Tauri 配置之外合并 `src-tauri/tauri.release.conf.json`，并把 `src-tauri/binaries/pc-agent-backend-x86_64-pc-windows-msvc.exe` 作为 backend sidecar 打入安装包。开发模式不合并该配置，因此无需预先生成 sidecar。
 
-指定版本并打包：
-
-```powershell
-npm run package:win -- -Version 0.1.2
-```
+如需指定新版本，应回到 `dev` 分支执行 `npm run version:set -- <version>` 并提交版本文件，再将 `dev` 合并到 `master` 后打包。
 
 不使用代理：
 

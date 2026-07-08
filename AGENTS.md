@@ -116,7 +116,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\dev-tauri.ps1 -Proxy http://1
 
 项目长期保留 `master` 和 `dev` 两个主干分支：
 
-1. `master`：稳定发布分支，只保留发布级合并、版本升级和管理员明确授权的紧急修正。
+1. `master`：稳定发布分支，只保留已经在 `dev` 完成版本升级和验证后的发布合并，以及管理员明确授权的紧急修正。
 2. `dev`：集成测试分支，用于在合并到 `master` 前汇总功能分支、修复分支和性能优化分支，并完成合并测试。
 
 多人协作开发时，所有功能开发、Bug 修复、性能优化、重构和测试补充等改动，必须先从最新 `dev` 创建个人工作分支，不直接在 `master` 上开发，也不在 `dev` 上长期堆叠未评审功能代码。文档修改、参数配置、流程说明等小幅度改动允许直接在 `dev` 上修改和提交。
@@ -147,12 +147,12 @@ codex/perf/scan-0708-cache
 `master` 分支只保留以下操作：
 
 1. 合并已经在 `dev` 完成集成验证的内容。
-2. 合并后进行版本升级提交。
+2. 发布编译。
 3. 管理员明确授权的紧急文档或流程修正。
 
-所有合并尽量采用变基合并：功能分支先 `rebase dev`，再快进合并到 `dev`；`dev` 达到可发布状态后先完成集成验证，再快进合并到 `master`。如 `dev` 与 `master` 分叉，应先 `git rebase master`，再 `git merge --ff-only dev`。
+所有合并尽量采用变基合并：功能分支先 `rebase dev`，再快进合并到 `dev`；`dev` 达到可发布状态后，必须先在 `dev` 完成集成验证、版本升级和版本提交，再快进合并到 `master` 并在 `master` 上发布编译。如 `dev` 与 `master` 分叉，应先 `git rebase master`，再在 `dev` 上完成版本升级提交，最后 `git merge --ff-only dev`。
 
-每次 `dev` 合并到 `master` 后，必须立即进行一次独立版本升级提交。版本升级使用统一入口，例如 `npm run version:set -- 0.1.3` 或修改 `VERSION` 后运行 `npm run version:sync`。版本提交只包含版本相关文件，不混入功能代码。
+每次发布前，必须先在 `dev` 上进行一次独立版本升级提交。版本升级使用统一入口，例如 `npm run version:set -- 0.1.3` 或修改 `VERSION` 后运行 `npm run version:sync`。版本提交只包含版本相关文件，不混入功能代码。`master` 不再补做版本升级提交，只合并已经包含版本提交的 `dev` 历史并执行发布编译。
 
 完整流程见 `docs/development/DEVELOPMENT_WORKFLOW.md`。
 

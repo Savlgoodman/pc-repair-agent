@@ -20,11 +20,7 @@
 npm run version:set -- 0.1.2
 ```
 
-也可以发布时直接传入版本号：
-
-```powershell
-npm run release:win -- -Version 0.1.2
-```
+发布时不建议再传入新版本号。版本升级必须先在 `dev` 分支完成并提交，然后再合并到 `master` 执行发布编译。
 
 如果只修改了 `VERSION` 文件，执行：
 
@@ -32,7 +28,7 @@ npm run release:win -- -Version 0.1.2
 npm run version:sync
 ```
 
-`release.ps1` 和 `scripts/package-windows.ps1` 会在打包前自动同步版本。
+`release.ps1` 和 `scripts/package-windows.ps1` 会在打包前自动同步已有版本字段，但发布流程不应依赖它们在 `master` 上产生新的版本改动。
 
 ## 打包
 
@@ -59,11 +55,13 @@ src-tauri/target/release/bundle/msi/
 
 当前阶段推荐手动更新：
 
-1. 更新版本号，例如 `npm run version:set -- 0.1.2`，或修改 `VERSION` 后运行 `npm run version:sync`。
-2. 运行验证命令。
-3. 执行 `npm run package:win`。
-4. 发布新的 `.exe` 或 `.msi`。
-5. 用户运行新安装包覆盖安装。
+1. 在 `dev` 分支运行验证命令。
+2. 在 `dev` 分支更新版本号，例如 `npm run version:set -- 0.1.2`，或修改 `VERSION` 后运行 `npm run version:sync`。
+3. 在 `dev` 分支只提交版本相关文件，例如 `chore: 升级版本到 0.1.2`。
+4. 将 `dev` 快进合并到 `master`。
+5. 在 `master` 分支执行 `npm run package:win` 或 `npm run release:win`。
+6. 发布新的 `.exe` 或 `.msi`。
+7. 用户运行新安装包覆盖安装。
 
 安装包会保留用户运行时数据，例如：
 
