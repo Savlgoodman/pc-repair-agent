@@ -118,7 +118,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\dev-tauri.ps1 -Proxy http://1
 1. `master`：稳定发布分支，只保留发布级合并、版本升级和用户明确授权的紧急修正。
 2. `dev`：集成测试分支，用于在合并到 `master` 前汇总功能分支、修复分支和性能优化分支，并完成合并测试。
 
-功能开发、Bug 修复、性能优化、重构和测试补充等改动，必须从 `dev` 新建分支进行，不直接在 `master` 上开发。文档修改、参数配置、流程说明等小幅度改动允许直接在 `dev` 上修改和提交。
+多人协作开发时，所有功能开发、Bug 修复、性能优化、重构和测试补充等改动，必须先从最新 `dev` 创建个人工作分支，不直接在 `master` 上开发，也不在 `dev` 上长期堆叠未评审功能代码。文档修改、参数配置、流程说明等小幅度改动允许直接在 `dev` 上修改和提交。
 
 分支命名格式：
 
@@ -129,16 +129,24 @@ powershell -ExecutionPolicy Bypass -File .\scripts\dev-tauri.ps1 -Proxy http://1
 示例：
 
 ```text
+feat/ui-0708-setting-page
 feat/settings-0630-model-provider
 fix/backend-0630-sidecar-lifecycle
 perf/overview-0630-cache
 ```
 
+多人协作流程：
+
+1. 开始任务前，先切换并更新 `dev`，再创建个人功能、修复或性能分支，例如 `feat/ui-0708-setting-page`、`fix/backend-0708-stream-error`、`perf/scan-0708-cache`。
+2. 当前功能开发、Bug 修复或性能优化完成后，在个人分支内完成自测和提交，再提交 Pull Request 至 `dev` 分支。
+3. `dev` 作为集成测试分支，由项目成员通过 PR 合并功能分支、修复分支和性能优化分支。
+4. `dev` 合并至 `master` 仅允许管理员操作；`master` 是稳定发布分支，普通开发者和 AI Coding Agent 不得自行将 `dev` 合入 `master`。
+
 `master` 分支只保留以下操作：
 
 1. 合并已经在 `dev` 完成集成验证的内容。
 2. 合并后进行版本升级提交。
-3. 用户明确授权的紧急文档或流程修正。
+3. 管理员明确授权的紧急文档或流程修正。
 
 所有合并尽量采用变基合并：功能分支先 `rebase dev`，再快进合并到 `dev`；`dev` 达到可发布状态后先完成集成验证，再快进合并到 `master`。如 `dev` 与 `master` 分叉，应先 `git rebase master`，再 `git merge --ff-only dev`。
 
