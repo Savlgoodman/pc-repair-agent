@@ -1,6 +1,6 @@
 [project]
 name = "pc-agent-backend"
-version = "0.1.4"
+version = "0.1.5"
 description = "PC Repair Agent Python backend powered by nanobot"
 requires-python = ">=3.11"
 dependencies = [
