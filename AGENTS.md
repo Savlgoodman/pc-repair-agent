@@ -115,7 +115,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\dev-tauri.ps1 -Proxy http://1
 
 项目长期保留 `master` 和 `dev` 两个主干分支：
 
-1. `master`：稳定发布分支，只保留发布级合并、版本升级和用户明确授权的紧急修正。
+1. `master`：稳定发布分支，只保留发布级合并、版本升级和管理员明确授权的紧急修正。
 2. `dev`：集成测试分支，用于在合并到 `master` 前汇总功能分支、修复分支和性能优化分支，并完成合并测试。
 
 多人协作开发时，所有功能开发、Bug 修复、性能优化、重构和测试补充等改动，必须先从最新 `dev` 创建个人工作分支，不直接在 `master` 上开发，也不在 `dev` 上长期堆叠未评审功能代码。文档修改、参数配置、流程说明等小幅度改动允许直接在 `dev` 上修改和提交。
@@ -123,21 +123,22 @@ powershell -ExecutionPolicy Bypass -File .\scripts\dev-tauri.ps1 -Proxy http://1
 分支命名格式：
 
 ```text
-<type>/<scope>-<MMdd>-<name>
+<owner>/<type>/<scope>-<MMdd>-<name>
 ```
+
+其中 `<owner>` 使用开发者英文名、GitHub 用户名或 Agent 名，例如 `kevin`、`codex`；`<type>` 使用 `feat`、`fix`、`perf`、`refactor`、`test`、`docs`、`chore` 等类型。
 
 示例：
 
 ```text
-feat/ui-0708-setting-page
-feat/settings-0630-model-provider
-fix/backend-0630-sidecar-lifecycle
-perf/overview-0630-cache
+kevin/feat/ui-0708-setting-page
+kevin/fix/backend-0708-stream-error
+codex/perf/scan-0708-cache
 ```
 
 多人协作流程：
 
-1. 开始任务前，先切换并更新 `dev`，再创建个人功能、修复或性能分支，例如 `feat/ui-0708-setting-page`、`fix/backend-0708-stream-error`、`perf/scan-0708-cache`。
+1. 开始任务前，先切换并更新 `dev`，再创建个人功能、修复或性能分支，例如 `kevin/feat/ui-0708-setting-page`、`kevin/fix/backend-0708-stream-error`、`codex/perf/scan-0708-cache`。
 2. 当前功能开发、Bug 修复或性能优化完成后，在个人分支内完成自测和提交，再提交 Pull Request 至 `dev` 分支。
 3. `dev` 作为集成测试分支，由项目成员通过 PR 合并功能分支、修复分支和性能优化分支。
 4. `dev` 合并至 `master` 仅允许管理员操作；`master` 是稳定发布分支，普通开发者和 AI Coding Agent 不得自行将 `dev` 合入 `master`。

@@ -143,21 +143,23 @@ npm run backend:dev
 ```powershell
 git switch dev
 git pull
-git switch -c feat/ui-0708-setting-page
+git switch -c kevin/feat/ui-0708-setting-page
 ```
 
 分支命名格式：
 
 ```text
-<type>/<scope>-<MMdd>-<name>
+<owner>/<type>/<scope>-<MMdd>-<name>
 ```
+
+其中 `<owner>` 使用开发者英文名、GitHub 用户名或 Agent 名，例如 `kevin`、`codex`。
 
 示例：
 
 ```text
-feat/ui-0708-setting-page
-fix/backend-0708-stream-error
-perf/scan-0708-cache
+kevin/feat/ui-0708-setting-page
+kevin/fix/backend-0708-stream-error
+codex/perf/scan-0708-cache
 ```
 
 功能开发、Bug 修复或性能优化完成后，在个人分支内提交 Pull Request 至 `dev`。`dev` 至 `master` 的发布合并仅由管理员操作。

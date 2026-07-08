@@ -6,14 +6,14 @@
 
 项目长期保留两个主干分支：
 
-1. `master`：稳定发布分支，只保留发布级合并、版本升级和用户明确授权的紧急修正。
+1. `master`：稳定发布分支，只保留发布级合并、版本升级和管理员明确授权的紧急修正。
 2. `dev`：集成测试分支，用于在合并到 `master` 前汇总功能分支、修复分支和性能优化分支，并完成合并测试。
 
 `master` 分支只保留以下操作：
 
 1. 合并已经完成验证的特性分支。
 2. 合并后进行版本升级提交。
-3. 用户明确授权的紧急文档或流程修正。
+3. 管理员明确授权的紧急文档或流程修正。
 
 除上述情况外，不应直接在 `master` 上开发新功能、修复 Bug、做性能优化或重构。
 
@@ -26,23 +26,24 @@
 分支命名格式：
 
 ```text
-<type>/<scope>-<MMdd>-<name>
+<owner>/<type>/<scope>-<MMdd>-<name>
 ```
 
 字段说明：
 
-1. `<type>` 使用提交类型风格，例如 `feat`、`fix`、`perf`、`refactor`、`test`、`docs`、`chore`。
-2. `<scope>` 表示影响范围、模块或任务编号，例如 `ui`、`backend`、`tauri`、`release`。
-3. `<MMdd>` 使用创建分支当天的 4 位月日，例如 6 月 30 日写作 `0630`。
-4. `<name>` 使用简短英文短横线描述，避免空格、中文和特殊符号。
+1. `<owner>` 使用开发者英文名、GitHub 用户名或 Agent 名，例如 `kevin`、`codex`。
+2. `<type>` 使用提交类型风格，例如 `feat`、`fix`、`perf`、`refactor`、`test`、`docs`、`chore`。
+3. `<scope>` 表示影响范围、模块或任务编号，例如 `ui`、`backend`、`tauri`、`release`。
+4. `<MMdd>` 使用创建分支当天的 4 位月日，例如 7 月 8 日写作 `0708`。
+5. `<name>` 使用简短英文短横线描述，避免空格、中文和特殊符号。
 
 示例：
 
 ```text
-feat/settings-0630-model-provider
-fix/backend-0630-sidecar-lifecycle
-perf/overview-0630-cache
-refactor/release-0630-version-sync
+kevin/feat/ui-0708-setting-page
+kevin/fix/backend-0708-stream-error
+codex/perf/scan-0708-cache
+codex/refactor/release-0708-version-sync
 ```
 
 ## 开发流程
@@ -52,7 +53,7 @@ refactor/release-0630-version-sync
 ```powershell
 git switch dev
 git pull
-git switch -c feat/settings-0630-model-provider
+git switch -c kevin/feat/ui-0708-setting-page
 ```
 
 开发过程中保持小步提交，每个提交对应一个清晰目标。提交前应至少执行：
@@ -72,7 +73,7 @@ git status --short
 ```powershell
 git switch dev
 git pull
-git switch feat/settings-0630-model-provider
+git switch kevin/feat/ui-0708-setting-page
 git rebase dev
 ```
 
@@ -80,12 +81,12 @@ git rebase dev
 
 ```powershell
 git switch dev
-git merge --ff-only feat/settings-0630-model-provider
+git merge --ff-only kevin/feat/ui-0708-setting-page
 ```
 
 如历史已经分叉且不能快进，应优先回到功能分支继续 `rebase dev`，避免无意义 merge commit。只有在需要保留分支上下文或用户明确要求时，才使用非快进合并。
 
-`dev` 累积到可以发布的程度后，先完成集成验证，再合入 `master`：
+`dev` 累积到可以发布的程度后，先完成集成验证，再由管理员合入 `master`：
 
 ```powershell
 git switch master
@@ -140,7 +141,7 @@ git branch --show-current
 git status --short
 ```
 
-如果当前在 `master` 且任务不是版本升级、分支合并或用户明确授权的例外，应先切换到 `dev` 或从 `dev` 创建符合规范的新分支再修改代码。
+如果当前在 `master` 且任务不是版本升级、分支合并或管理员明确授权的例外，应先切换到 `dev` 或从 `dev` 创建符合规范的新分支再修改代码。
 
 如果当前在 `dev` 且任务只是文档修改、参数配置或流程说明等小幅度改动，可以直接在 `dev` 上修改。其他开发、修复和优化任务应从 `dev` 新建分支。
 
