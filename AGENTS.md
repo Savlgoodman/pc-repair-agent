@@ -24,7 +24,7 @@
 PowerShell 读取文件时建议：
 
 ```powershell
-Get-Content -Encoding UTF8 .\docs\PRD.md
+Get-Content -Encoding UTF8 .\docs\guides\PRD.md
 ```
 
 PowerShell 写入文件时必须显式指定 UTF-8：
@@ -36,8 +36,8 @@ Set-Content -Encoding UTF8 .\path\to\file.md $content
 Python 读写文件时必须显式指定编码：
 
 ```python
-Path("docs/PRD.md").read_text(encoding="utf-8")
-Path("docs/PRD.md").write_text(content, encoding="utf-8")
+Path("docs/guides/PRD.md").read_text(encoding="utf-8")
+Path("docs/guides/PRD.md").write_text(content, encoding="utf-8")
 ```
 
 手动编辑文件时，也应确认编辑器保存编码为 UTF-8。
@@ -48,24 +48,25 @@ Path("docs/PRD.md").write_text(content, encoding="utf-8")
 
 | 路径 | 用途 |
 |------|------|
-| `docs/PRD.md` | 产品需求文档，记录产品定位、核心功能、MVP 范围和路线规划 |
-| `docs/ARCHITECTURE.md` | 架构设计文档，记录 Tauri、Python 后台、Agent Runtime、审批网关等设计方向 |
-| `docs/PROJECT_STRUCTURE.md` | 项目目录结构规划，记录未来代码目录和职责边界 |
-| `docs/UI_DEVELOPMENT.md` | UI 与 Tauri 桌面壳开发文档，记录环境依赖、启动流程、目录职责和常见问题 |
-| `docs/DEVELOPMENT_WORKFLOW.md` | 开发流程规范，记录 dev 集成、分支命名、master 使用范围、变基合并和版本升级要求 |
-| `docs/UI_NANOBOT_INTEGRATION_DESIGN.md` | UI 去 mock、接入 nanobot Python 后台和 streamdown Markdown 渲染的设计文档 |
-| `docs/NANOBOT_SDK_RESEARCH.md` | nanobot SDK 调研记录，包含流式输出、工具审批、自定义 Tool、Skill 注入和配置建议 |
+| `docs/README.md` | 文档中心入口，记录分类、当前文档清单和新增文档命名规则 |
+| `docs/guides/PRD.md` | 产品需求文档，记录产品定位、核心功能、MVP 范围和路线规划 |
+| `docs/architecture/ARCHITECTURE.md` | 架构设计文档，记录 Tauri、Python 后台、Agent Runtime、审批网关等设计方向 |
+| `docs/architecture/PROJECT_STRUCTURE.md` | 项目目录结构规划，记录未来代码目录和职责边界 |
+| `docs/guides/UI_DEVELOPMENT.md` | UI 与 Tauri 桌面壳开发文档，记录环境依赖、启动流程、目录职责和常见问题 |
+| `docs/development/DEVELOPMENT_WORKFLOW.md` | 开发流程规范，记录 dev 集成、分支命名、master 使用范围、变基合并和版本升级要求 |
+| `docs/design/0708-UI-NANOBOT-INTEGRATION.md` | UI 去 mock、接入 nanobot Python 后台和 streamdown Markdown 渲染的设计文档 |
+| `docs/research/0708-NANOBOT-SDK-RESEARCH.md` | nanobot SDK 调研记录，包含流式输出、工具审批、自定义 Tool、Skill 注入和配置建议 |
 | `demo/README.md` | nanobot 命令行 demo 使用说明 |
 
 阅读建议：
 
-1. 做产品需求相关任务，先读 `docs/PRD.md`。
-2. 做架构和模块边界相关任务，先读 `docs/ARCHITECTURE.md` 和 `docs/PROJECT_STRUCTURE.md`。
-3. 做 UI、Tauri 桌面壳、前端交互和启动环境相关任务，先读 `docs/UI_DEVELOPMENT.md`。
-4. 做 UI 去 mock、接入 nanobot、流式事件、审批闭环和 Markdown 渲染相关任务，先读 `docs/UI_NANOBOT_INTEGRATION_DESIGN.md`。
-5. 做 nanobot、Skill、Tool、审批流相关任务，先读 `docs/NANOBOT_SDK_RESEARCH.md`。
+1. 做产品需求相关任务，先读 `docs/guides/PRD.md`。
+2. 做架构和模块边界相关任务，先读 `docs/architecture/ARCHITECTURE.md` 和 `docs/architecture/PROJECT_STRUCTURE.md`。
+3. 做 UI、Tauri 桌面壳、前端交互和启动环境相关任务，先读 `docs/guides/UI_DEVELOPMENT.md`。
+4. 做 UI 去 mock、接入 nanobot、流式事件、审批闭环和 Markdown 渲染相关任务，先读 `docs/design/0708-UI-NANOBOT-INTEGRATION.md`。
+5. 做 nanobot、Skill、Tool、审批流相关任务，先读 `docs/research/0708-NANOBOT-SDK-RESEARCH.md`。
 6. 做 demo 相关任务，先读 `demo/README.md` 和 `demo/pyproject.toml`。
-7. 做功能开发、Bug 修复、性能优化、重构或发布合并前，先读 `docs/DEVELOPMENT_WORKFLOW.md`。
+7. 做功能开发、Bug 修复、性能优化、重构或发布合并前，先读 `docs/development/DEVELOPMENT_WORKFLOW.md`。
 
 ## 开发与启动入口
 
@@ -109,7 +110,7 @@ npm run backend:dev
 powershell -ExecutionPolicy Bypass -File .\scripts\dev-tauri.ps1 -Proxy http://127.0.0.1:7899
 ```
 
-完整开发步骤、环境依赖、排错说明和 UI 结构说明见 `docs/UI_DEVELOPMENT.md`。
+完整开发步骤、环境依赖、排错说明和 UI 结构说明见 `docs/guides/UI_DEVELOPMENT.md`。
 
 ## 分支开发流程
 
@@ -153,7 +154,7 @@ codex/perf/scan-0708-cache
 
 每次 `dev` 合并到 `master` 后，必须立即进行一次独立版本升级提交。版本升级使用统一入口，例如 `npm run version:set -- 0.1.3` 或修改 `VERSION` 后运行 `npm run version:sync`。版本提交只包含版本相关文件，不混入功能代码。
 
-完整流程见 `docs/DEVELOPMENT_WORKFLOW.md`。
+完整流程见 `docs/development/DEVELOPMENT_WORKFLOW.md`。
 
 ## 提交规范
 

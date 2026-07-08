@@ -135,4 +135,4 @@ pc-agent-backend.exe
 %USERPROFILE%\.repair-agent\cache
 ```
 
-自动更新规划见 `docs/RELEASE_AND_UPDATE.md`。
+自动更新规划见 `docs/guides/RELEASE_AND_UPDATE.md`。

@@ -27,7 +27,7 @@
 
 ### 2.1 nanobot SDK
 
-根据 `docs/NANOBOT_SDK_RESEARCH.md`，nanobot 已确认支持：
+根据 `docs/research/0708-NANOBOT-SDK-RESEARCH.md`，nanobot 已确认支持：
 
 1. `Nanobot.from_config(...)` 创建实例。
 2. `bot.run_streamed(...)` 发起流式执行。
@@ -671,9 +671,9 @@ API Key 不进入 UI localStorage。当前通过环境变量读取，后续可�
 
 实现开始后应同步更新：
 
-1. `docs/UI_DEVELOPMENT.md`：去掉“当前不对接 Python 后台”的表述。
-2. `docs/PROJECT_STRUCTURE.md`：补充实际 `backend/`、`ui/src/components`、`ui/src/services` 结构。
-3. `docs/NANOBOT_SDK_RESEARCH.md`：记录 UI 接入后的实测行为。
+1. `docs/guides/UI_DEVELOPMENT.md`：去掉“当前不对接 Python 后台”的表述。
+2. `docs/architecture/PROJECT_STRUCTURE.md`：补充实际 `backend/`、`ui/src/components`、`ui/src/services` 结构。
+3. `docs/research/0708-NANOBOT-SDK-RESEARCH.md`：记录 UI 接入后的实测行为。
 4. `AGENTS.md`：加入 backend 和 nanobot UI 集成的简要启动入口。
 
 ## 16. 风险与待确认问题

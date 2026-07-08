@@ -22,19 +22,25 @@ PC-agent/
 
 ### `docs/`
 
-产品和工程文档。
+产品和工程文档。`docs/README.md` 是文档中心入口，新增文档应按主题放入对应子目录。
 
-规划文件：
+规划结构：
 
 ```text
 docs/
-  PRD.md
-  ARCHITECTURE.md
-  PROJECT_STRUCTURE.md
-  ADR/
+  README.md
+  architecture/
+    ARCHITECTURE.md
+    PROJECT_STRUCTURE.md
+    ADR/
+  design/
+  refactor/
+  guides/
+  development/
+  research/
 ```
 
-`ADR/` 用于保存架构决策记录。当某个技术选择足够重要，例如“为什么选择 stdio JSON-RPC 而不是 HTTP”，就可以写一篇 ADR。
+`architecture/ADR/` 用于保存架构决策记录。当某个技术选择足够重要，例如“为什么选择 stdio JSON-RPC 而不是 HTTP”，就可以写一篇 ADR。
 
 ### `ui/`
 

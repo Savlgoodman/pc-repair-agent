@@ -68,7 +68,7 @@ Execution Gateway
 | `ui/` | React + Vite 前端 UI，使用 `streamdown` 渲染 assistant Markdown |
 | `src-tauri/` | Tauri 2 桌面壳，负责桌面窗口和本地能力集成 |
 | `backend/` | Python nanobot 后台，使用 uv 管理依赖，提供本地 NDJSON 流式接口 |
-| `docs/` | 产品需求、架构设计、开发流程、UI 开发、nanobot 调研和专项设计文档 |
+| `docs/` | 分层文档中心，包含架构、设计、重构、指南、开发规范和调研记录 |
 | `demo/` | nanobot 命令行 demo 与验证入口 |
 | `scripts/` | 本地开发、Tauri 启动和辅助脚本 |
 
@@ -116,19 +116,20 @@ npm run ui:dev
 npm run backend:dev
 ```
 
-完整环境依赖、启动流程和排错说明见 `docs/UI_DEVELOPMENT.md`。
+完整环境依赖、启动流程和排错说明见 `docs/guides/UI_DEVELOPMENT.md`。
 
 ## 文档入口
 
 | 路径 | 用途 |
 |------|------|
-| `docs/PRD.md` | 产品定位、核心功能、MVP 范围和路线规划 |
-| `docs/ARCHITECTURE.md` | Tauri、Python 后台、Agent Runtime、审批网关等架构设计 |
-| `docs/PROJECT_STRUCTURE.md` | 项目目录结构规划和职责边界 |
-| `docs/UI_DEVELOPMENT.md` | UI 与 Tauri 桌面壳开发、启动和排错说明 |
-| `docs/DEVELOPMENT_WORKFLOW.md` | 分支开发、合并、版本升级和发布流程 |
-| `docs/UI_NANOBOT_INTEGRATION_DESIGN.md` | UI 去 mock、接入 nanobot 后台和流式事件设计 |
-| `docs/NANOBOT_SDK_RESEARCH.md` | nanobot SDK 流式输出、审批、自定义 Tool 和 Skill 注入调研 |
+| `docs/README.md` | 文档分类、当前文档清单和新增文档命名规则 |
+| `docs/guides/PRD.md` | 产品定位、核心功能、MVP 范围和路线规划 |
+| `docs/architecture/ARCHITECTURE.md` | Tauri、Python 后台、Agent Runtime、审批网关等架构设计 |
+| `docs/architecture/PROJECT_STRUCTURE.md` | 项目目录结构规划和职责边界 |
+| `docs/guides/UI_DEVELOPMENT.md` | UI 与 Tauri 桌面壳开发、启动和排错说明 |
+| `docs/development/DEVELOPMENT_WORKFLOW.md` | 分支开发、合并、版本升级和发布流程 |
+| `docs/design/0708-UI-NANOBOT-INTEGRATION.md` | UI 去 mock、接入 nanobot 后台和流式事件设计 |
+| `docs/research/0708-NANOBOT-SDK-RESEARCH.md` | nanobot SDK 流式输出、审批、自定义 Tool 和 Skill 注入调研 |
 | `demo/README.md` | nanobot 命令行 demo 使用说明 |
 
 ## 协作流程
@@ -175,4 +176,4 @@ MVP 阶段重点：
 5. 完成显卡驱动检索原型。
 6. 展示 Skill 列表和 Skill 执行状态。
 
-更完整的产品范围、非目标、成功指标、风险和路线图见 `docs/PRD.md`。
+更完整的产品范围、非目标、成功指标、风险和路线图见 `docs/guides/PRD.md`。
